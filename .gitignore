@@ -128,3 +128,7 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# Testing datasets folder
+datasets/testing
+weights/

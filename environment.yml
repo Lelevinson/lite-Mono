@@ -6,7 +6,8 @@ channels:
   - defaults
 dependencies:
   - python=3.9
-  - numpy
+  - numpy<2.0
+  - intel-openmp=2021.4.0
   - pillow
   - matplotlib
   - scikit-image
