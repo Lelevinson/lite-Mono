@@ -21,6 +21,7 @@ dependencies:
       - wget
       - requests
       - pyyaml
+      - rosbags
       - tensorboardX>=2.2
       - timm==0.4.12
       - thop

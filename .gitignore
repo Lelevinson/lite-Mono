@@ -129,6 +129,17 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
-# Testing datasets folder
+# Testing results
 datasets/testing
+
+# Weights
 weights/
+
+# Vscode settings
+.vscode
+
+# Citrus farm datasets
+datasets/citrus-farm-dataset/01_13B_Jackal
+datasets/citrus-farm-dataset/Calibration
+datasets/citrus-farm-dataset/ground_truth
+datasets/citrus-farm-dataset/extracted_rgbd
