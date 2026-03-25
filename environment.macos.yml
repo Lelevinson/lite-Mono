@@ -1,24 +1,19 @@
-name: lite-mono
+name: lite-mono-macos
 channels:
   - pytorch
-  - nvidia
   - conda-forge
   - defaults
 dependencies:
   - python=3.9
   - numpy<2.0
-  - intel-openmp=2021.4.0
   - pillow
   - matplotlib
   - scikit-image
   - pip
 
-  # --- PyTorch (CUDA 11.8) ---
-  # Change the cuda version below if your GPU driver requires a different one.
-  # Run `nvidia-smi` to check the maximum supported CUDA version.
+  # --- PyTorch (macOS: CPU / MPS depending on hardware) ---
   - pytorch::pytorch>=1.12,<2.1
   - pytorch::torchvision
-  - pytorch::pytorch-cuda=11.8
 
   # --- pip-only packages ---
   - pip:
