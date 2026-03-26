@@ -143,3 +143,4 @@ datasets/citrus-farm-dataset/01_13B_Jackal
 datasets/citrus-farm-dataset/Calibration
 datasets/citrus-farm-dataset/ground_truth
 datasets/citrus-farm-dataset/extracted_rgbd
+datasets/citrus-farm-dataset/extracted_lidar
