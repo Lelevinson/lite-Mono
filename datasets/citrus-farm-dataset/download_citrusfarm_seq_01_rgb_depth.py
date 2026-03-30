@@ -1,11 +1,12 @@
-# File: download_citrusfarm_seq1_3blocks.py
-# Modified to download ONLY the first 3 ZED blocks of Sequence 01
+# File: download_citrusfarm_seq_01_rgb_depth.py
+# Download ZED bags aligned to selected base (LiDAR) bag time window.
 
 import wget
 import os
 import yaml
 import requests
 import hashlib
+from datetime import datetime, timedelta
 
 
 def ComputeMD5(file_path):
@@ -16,7 +17,99 @@ def ComputeMD5(file_path):
     return hash_md5.hexdigest()
 
 
-def DownloadFiles(base_url, folder_dict, folder_list, modality_list, max_blocks=3):
+def ParseBagStartTime(filename):
+    base = os.path.basename(filename)
+    parts = base.split("_")
+    # Expected pattern: <modality>_YYYY-MM-DD-HH-MM-SS_<index>.bag
+    if len(parts) < 3:
+        return None
+    try:
+        return datetime.strptime(parts[1], "%Y-%m-%d-%H-%M-%S")
+    except ValueError:
+        return None
+
+
+def SortFilesByBagTime(file_list):
+    return sorted(file_list, key=lambda f: (ParseBagStartTime(f) or datetime.max, f))
+
+
+def InferReferenceSpanSeconds(reference_files, default_seconds=540):
+    times = [ParseBagStartTime(f) for f in reference_files]
+    times = [t for t in times if t is not None]
+
+    if len(times) < 2:
+        return default_seconds
+
+    times.sort()
+    intervals = []
+    for i in range(1, len(times)):
+        delta_sec = (times[i] - times[i - 1]).total_seconds()
+        if delta_sec > 0:
+            intervals.append(delta_sec)
+
+    if not intervals:
+        return default_seconds
+
+    intervals.sort()
+    return int(intervals[len(intervals) // 2])
+
+
+def SelectAlignedModalityFiles(
+    filenames,
+    target_prefix,
+    reference_prefix,
+    max_reference_blocks=3,
+    default_reference_span_seconds=540,
+    tail_seconds=60,
+):
+    reference_files = SortFilesByBagTime(
+        [f for f in filenames if f.startswith(reference_prefix)]
+    )
+    selected_reference = reference_files[:max_reference_blocks]
+
+    target_files = SortFilesByBagTime(
+        [f for f in filenames if f.startswith(target_prefix)]
+    )
+
+    if not selected_reference:
+        return target_files, None, None, []
+
+    window_start = ParseBagStartTime(selected_reference[0])
+    last_reference_start = ParseBagStartTime(selected_reference[-1])
+
+    if window_start is None or last_reference_start is None:
+        return target_files, None, None, selected_reference
+
+    span_seconds = InferReferenceSpanSeconds(
+        selected_reference, default_seconds=default_reference_span_seconds
+    )
+    window_end = last_reference_start + timedelta(seconds=span_seconds + tail_seconds)
+
+    aligned = []
+    for f in target_files:
+        ts = ParseBagStartTime(f)
+        if ts is None:
+            continue
+        if window_start <= ts <= window_end:
+            aligned.append(f)
+
+    if not aligned:
+        # Conservative fallback: keep at least one target file if timestamps were unusual.
+        aligned = target_files[:1]
+
+    return aligned, window_start, window_end, selected_reference
+
+
+def DownloadFiles(
+    base_url,
+    folder_dict,
+    folder_list,
+    modality_list,
+    max_blocks=3,
+    reference_modality="base",
+    default_reference_span_seconds=540,
+    tail_seconds=60,
+):
     data_folders = [
         "01_13B_Jackal",
         "02_13B_Jackal",
@@ -36,16 +129,42 @@ def DownloadFiles(base_url, folder_dict, folder_list, modality_list, max_blocks=
         if not os.path.exists(folder):
             os.makedirs(folder)
 
-        # NEW LOGIC: Filter and limit the files before downloading
+        # Filter target files before downloading
         if folder in data_folders:
-            # Find all files that match our requested modality ('zed')
-            target_files = [
-                f
-                for f in filenames.keys()
-                if any(f.startswith(m) for m in modality_list)
-            ]
-            # Sort them chronologically and slice the first 3 blocks
-            target_files = sorted(target_files)[:max_blocks]
+            if len(modality_list) == 1 and modality_list[0] == "zed":
+                (
+                    target_files,
+                    window_start,
+                    window_end,
+                    selected_reference,
+                ) = SelectAlignedModalityFiles(
+                    filenames.keys(),
+                    target_prefix="zed",
+                    reference_prefix=reference_modality,
+                    max_reference_blocks=max_blocks,
+                    default_reference_span_seconds=default_reference_span_seconds,
+                    tail_seconds=tail_seconds,
+                )
+
+                print(
+                    f"\n[{folder}] Reference {reference_modality} files ({len(selected_reference)}):"
+                )
+                for ref in selected_reference:
+                    print(f"  {ref}")
+
+                if window_start and window_end:
+                    print(
+                        f"[{folder}] Selecting zed files in window: "
+                        f"{window_start} -> {window_end}"
+                    )
+                print(f"[{folder}] Selected zed files: {len(target_files)}")
+            else:
+                target_files = [
+                    f
+                    for f in filenames.keys()
+                    if any(f.startswith(m) for m in modality_list)
+                ]
+                target_files = SortFilesByBagTime(target_files)[:max_blocks]
         else:
             # If it's a Calibration or Ground Truth folder, keep everything
             target_files = filenames.keys()
@@ -117,5 +236,22 @@ if __name__ == "__main__":
     # Target only the ZED camera modality
     modality_list = ["zed"]
 
-    # We pass max_blocks=3 to the function to enforce our limit
-    DownloadFiles(base_url, folder_dict, folder_list, modality_list, max_blocks=3)
+    # Number of base files used to define the download time window
+    max_blocks = 3
+
+    # Base blocks in Sequence 01 are around 9 minutes apart; use this as default span.
+    default_reference_span_seconds = 540
+
+    # Small buffer to avoid clipping the final overlapping zed bag.
+    tail_seconds = 60
+
+    DownloadFiles(
+        base_url,
+        folder_dict,
+        folder_list,
+        modality_list,
+        max_blocks=max_blocks,
+        reference_modality="base",
+        default_reference_span_seconds=default_reference_span_seconds,
+        tail_seconds=tail_seconds,
+    )

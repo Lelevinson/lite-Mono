@@ -1,11 +1,12 @@
-# File: download_lidar_seq1_3blocks.py
-# Modified to download ONLY the first 3 LiDAR (base) blocks of Sequence 01
+# File: download_citrusfarm_seq_01_lidar.py
+# Download selected LiDAR base bags with explicit timestamp ordering.
 
 import wget
 import os
 import yaml
 import requests
 import hashlib
+from datetime import datetime
 
 
 def ComputeMD5(file_path):
@@ -14,6 +15,22 @@ def ComputeMD5(file_path):
         for chunk in iter(lambda: f.read(4096), b""):
             hash_md5.update(chunk)
     return hash_md5.hexdigest()
+
+
+def ParseBagStartTime(filename):
+    base = os.path.basename(filename)
+    parts = base.split("_")
+    # Expected pattern: <modality>_YYYY-MM-DD-HH-MM-SS_<index>.bag
+    if len(parts) < 3:
+        return None
+    try:
+        return datetime.strptime(parts[1], "%Y-%m-%d-%H-%M-%S")
+    except ValueError:
+        return None
+
+
+def SortFilesByBagTime(file_list):
+    return sorted(file_list, key=lambda f: (ParseBagStartTime(f) or datetime.max, f))
 
 
 def DownloadFiles(base_url, folder_dict, folder_list, modality_list, max_blocks=3):
@@ -36,7 +53,7 @@ def DownloadFiles(base_url, folder_dict, folder_list, modality_list, max_blocks=
         if not os.path.exists(folder):
             os.makedirs(folder)
 
-        # NEW LOGIC: Filter and limit the files before downloading
+        # Filter and limit the files before downloading
         if folder in data_folders:
             # Find all files that match our requested modality ('base' for LiDAR)
             target_files = [
@@ -44,8 +61,13 @@ def DownloadFiles(base_url, folder_dict, folder_list, modality_list, max_blocks=
                 for f in filenames.keys()
                 if any(f.startswith(m) for m in modality_list)
             ]
-            # Sort them chronologically and slice the first 3 blocks
-            target_files = sorted(target_files)[:max_blocks]
+
+            # Sort by bag timestamp and slice requested number of blocks
+            target_files = SortFilesByBagTime(target_files)[:max_blocks]
+
+            print(f"\n[{folder}] Selected files ({len(target_files)}):")
+            for selected in target_files:
+                print(f"  {selected}")
         else:
             # If it's a Calibration or Ground Truth folder, keep everything
             target_files = filenames.keys()
@@ -114,9 +136,8 @@ if __name__ == "__main__":
         "ground_truth/01_13B_Jackal",
     ]
 
-    # --- THE ONLY CHANGED LINE ---
-    # Target 'base' to get the LiDAR point clouds and IMU
+    # Target 'base' to get LiDAR, IMU and GPS topics in base bags.
     modality_list = ["base"]
 
-    # We pass max_blocks=3 to the function to enforce our limit
+    # Download first N base blocks by timestamp order.
     DownloadFiles(base_url, folder_dict, folder_list, modality_list, max_blocks=3)
