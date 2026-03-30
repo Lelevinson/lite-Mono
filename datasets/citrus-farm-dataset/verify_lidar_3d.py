@@ -1,43 +1,48 @@
 import numpy as np
-import matplotlib.pyplot as plt
+import open3d as o3d
+import os
 
 # Replace with the exact filename of ONE of your extracted LiDAR npz files
-lidar_file = "extracted_lidar/velodyne_points/base_2023-07-18-14-44-35_2_bag_1689716895552198616.npz"
+lidar_file = "extracted_lidar/velodyne_points/base_2023-07-18-14-26-48_0_bag_1689715609165443992.npz"
 
 
-def verify_pointcloud(file_path):
-    print("--- Verifying LiDAR Point Cloud ---")
+def view_pointcloud_o3d(file_path):
+    print("--- Loading True 1:1 LiDAR Point Cloud ---")
 
     # Load the compressed numpy archive
     data = np.load(file_path)["arr_0"]
 
-    print(f"Shape: {data.shape} | Data Type: {data.dtype}")
-    print(f"Total laser hits captured: {len(data)}")
+    # Extract X, Y, Z
+    pts_3d = data[:, :3]
 
-    # Extract the X, Y, Z coordinates
-    x = data[:, 0]
-    y = data[:, 1]
-    z = data[:, 2]
+    # Create an Open3D PointCloud object
+    pcd = o3d.geometry.PointCloud()
+    pcd.points = o3d.utility.Vector3dVector(pts_3d)
 
-    # Create a 3D interactive plot
-    fig = plt.figure(figsize=(10, 8))
-    ax = fig.add_subplot(111, projection="3d")
+    # Optional: Color the points based on their height (Z-axis)
+    # so trees stand out from the ground
+    z_vals = pts_3d[:, 2]
+    z_normalized = (z_vals - np.min(z_vals)) / (np.max(z_vals) - np.min(z_vals))
 
-    # We skip every 2nd point ([::2]) just so matplotlib doesn't lag your computer
-    scatter = ax.scatter(x[::2], y[::2], z[::2], c=z[::2], cmap="viridis", s=1)
+    # Apply a colormap (Blue for ground, Red/Yellow for high trees)
+    import matplotlib.pyplot as plt
 
-    ax.set_title("Raw 3D LiDAR Point Cloud")
-    ax.set_xlabel("X (Distance Forward)")
-    ax.set_ylabel("Y (Distance Left/Right)")
-    ax.set_zlabel("Z (Height)")
+    cmap = plt.get_cmap("jet")
+    colors = cmap(z_normalized)[:, :3]  # Drop the alpha channel
+    pcd.colors = o3d.utility.Vector3dVector(colors)
 
-    # Lock the view to realistic physical distances (meters)
-    ax.set_xlim([0, 15])  # Look 15 meters straight ahead
-    ax.set_ylim([-8, 8])  # Look 8 meters left and right
-    ax.set_zlim([-1, 3])  # Look from ground level up to 3 meters high
-
-    plt.show()
+    # Render the 3D environment
+    print("Controls:")
+    print(" - Left Click & Drag: Rotate camera")
+    print(" - Right Click & Drag: Pan camera")
+    print(" - Scroll Wheel: Zoom")
+    o3d.visualization.draw_geometries(
+        [pcd], window_name="Open3D LiDAR Viewer (1:1 Scale)", width=1280, height=720
+    )
 
 
 if __name__ == "__main__":
-    verify_pointcloud(lidar_file)
+    if not os.path.exists(lidar_file):
+        print(f"Error: Could not find {lidar_file}")
+    else:
+        view_pointcloud_o3d(lidar_file)
