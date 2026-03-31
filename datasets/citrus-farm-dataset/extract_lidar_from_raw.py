@@ -1,4 +1,4 @@
-# File: extract_lidar_pointcloud.py
+# File: extract_lidar_from_raw.py
 # Pure-Python script to safely extract 3D LiDAR point clouds
 
 import argparse

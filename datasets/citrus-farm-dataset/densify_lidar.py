@@ -1,4 +1,4 @@
-# File: densify_lidar_depth.py
+# File: densify_lidar.py
 
 # Projects 3D LiDAR point clouds onto 2D ZED images and densifies them
 
