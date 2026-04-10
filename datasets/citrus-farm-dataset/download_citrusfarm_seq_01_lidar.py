@@ -140,4 +140,4 @@ if __name__ == "__main__":
     modality_list = ["base"]
 
     # Download first N base blocks by timestamp order.
-    DownloadFiles(base_url, folder_dict, folder_list, modality_list, max_blocks=3)
+    DownloadFiles(base_url, folder_dict, folder_list, modality_list, max_blocks=1)

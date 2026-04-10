@@ -65,6 +65,24 @@ Validated:
 1. Overlap-window selection behavior was tested against official YAML list.
 2. build_training_dataset.py was tested with --max_samples 5 and produced expected outputs.
 
+## Current Local Data Snapshot (2026-04-01)
+
+Observed after recent local script/data changes:
+
+1. Download scope set to one base block (max_blocks=1), with overlap-window zed download yielding 21 zed bag chunks for that base time window.
+2. Extracted outputs increased substantially:
+   - extracted_rgbd RGB frames: 6047 PNG
+   - extracted_rgbd depth dataset: 6049 NPZ
+   - extracted_lidar scans: 5235 NPZ
+3. Local storage footprint now reflects this larger pull:
+   - extracted_rgbd: ~16.42 GB
+   - extracted_lidar: ~1.46 GB
+4. Unique extracted bag prefixes currently indicate expected ratio:
+   - zed prefixes: 21
+   - base prefixes: 1
+5. Current local workspace does not currently contain extracted_dense_lidar/ or prepared_training_dataset/ outputs (needs rerun if required for next stage).
+6. build_training_dataset.py now includes parallel processing and optimized timestamp pairing (find_closest_optimized) for faster conversion runs.
+
 ## Important Pairing Rule
 
 Do not pair modalities by filename order only.
@@ -194,6 +212,7 @@ Build:
 - 2026-03-31: Updated strategy framing to self-supervised-first (discussion-stage), with supervised/hybrid positioned as optional stage-2 comparisons pending professor feedback; refreshed professor-facing report tone to casual update style.
 - 2026-04-01: Updated context paths after citrus-farm-dataset rename pass (extract scripts, densify script, and prepared dense label folder naming).
 - 2026-04-01: Synced renamed citrus paths in code artifacts (builder import now uses densify_lidar, builder output uses dense_lidar_npz, and prepared split/metrics manifests now reference dense_lidar_npz consistently).
+- 2026-04-01: Added latest local data snapshot after one-base/21-zed pull; captured expanded extracted_rgbd/extracted_lidar counts and storage impact, plus note that prepared outputs are currently not present locally.
 
 ## Update Template (Append On Future Changes)
 

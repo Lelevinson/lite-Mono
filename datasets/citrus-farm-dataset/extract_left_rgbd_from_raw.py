@@ -102,9 +102,10 @@ def extract_data_from_bag(bag_path, output_folder):
         connections = [conn for conn in reader.connections if conn.topic in ALLOWED_TOPICS]
 
         if not connections:
-            print(f"No matching topics found in {os.path.basename(bag_path)}")
+            print(f"  No matching topics found in {os.path.basename(bag_path)}")
             return
 
+        count = 0
         for connection, timestamp_ns, rawdata in reader.messages(connections=connections):
             msg = reader.deserialize(rawdata, connection.msgtype)
             out = output_path(output_folder, os.path.basename(bag_path), connection.topic, timestamp_ns)
@@ -113,12 +114,19 @@ def extract_data_from_bag(bag_path, output_folder):
                 write_rgb_png(msg, out)
             elif connection.topic == DEPTH_TOPIC:
                 write_depth_npz(msg, out)
+            
+            count += 1
+            if count % 50 == 0:
+                print(f"    Extracted {count} messages...", end="\r")
+        print(f"    Finished extracting {count} messages.          ")
 
 def filter_rosbags(src_folder, prefixes_of_interest):
     rosbags_of_interest = []
+    if not os.path.exists(src_folder):
+        return []
     for filename in os.listdir(src_folder):
         for prefix in prefixes_of_interest:
-            if filename.startswith(prefix):
+            if filename.startswith(prefix) and filename.endswith(".bag"):
                 rosbags_of_interest.append(filename)
                 break
     return rosbags_of_interest
@@ -135,10 +143,26 @@ if __name__ == "__main__":
     rosbags_to_process = filter_rosbags(args.src_folder, rosbag_prefixes_of_interest)
     rosbags_to_process.sort()
 
-    print("Found the following ZED bags to process:")
-    for bag in rosbags_to_process:
-        print(f"  {bag}")
+    if not rosbags_to_process:
+        print(f"No ZED bags found in {args.src_folder}")
+        exit(1)
 
-    for bag_name in rosbags_to_process:
+    print(f"Found {len(rosbags_to_process)} ZED bags to process.")
+
+    for idx, bag_name in enumerate(rosbags_to_process, start=1):
+        print(f"[{idx}/{len(rosbags_to_process)}] Processing bag: {bag_name}")
+        
+        # Skip check: if the first few frames of this bag already exist, skip it.
+        prefix = bag_name.replace(".", "_")
+        rgb_dir = os.path.join(args.output_folder, "zed2i_zed_node_left_image_rect_color")
+        if os.path.exists(rgb_dir):
+            existing = [f for f in os.listdir(rgb_dir) if f.startswith(prefix)]
+            if len(existing) > 50:
+                print(f"  Skipping (found {len(existing)} existing files).")
+                continue
+
         bag_path = os.path.join(args.src_folder, bag_name)
-        extract_data_from_bag(bag_path, args.output_folder)
+        try:
+            extract_data_from_bag(bag_path, args.output_folder)
+        except Exception as e:
+            print(f"  Error processing {bag_name}: {e}")

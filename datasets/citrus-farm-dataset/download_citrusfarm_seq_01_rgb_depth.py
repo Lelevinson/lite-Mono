@@ -237,7 +237,7 @@ if __name__ == "__main__":
     modality_list = ["zed"]
 
     # Number of base files used to define the download time window
-    max_blocks = 3
+    max_blocks = 1
 
     # Base blocks in Sequence 01 are around 9 minutes apart; use this as default span.
     default_reference_span_seconds = 540
