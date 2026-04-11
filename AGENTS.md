@@ -213,6 +213,7 @@ Build:
 - 2026-04-01: Updated context paths after citrus-farm-dataset rename pass (extract scripts, densify script, and prepared dense label folder naming).
 - 2026-04-01: Synced renamed citrus paths in code artifacts (builder import now uses densify_lidar, builder output uses dense_lidar_npz, and prepared split/metrics manifests now reference dense_lidar_npz consistently).
 - 2026-04-01: Added latest local data snapshot after one-base/21-zed pull; captured expanded extracted_rgbd/extracted_lidar counts and storage impact, plus note that prepared outputs are currently not present locally.
+- 2026-04-11: Added .github/copilot-instructions.md with verified run commands, cross-file architecture overview, and repository-specific conventions for future Copilot sessions.
 
 ## Update Template (Append On Future Changes)
 
