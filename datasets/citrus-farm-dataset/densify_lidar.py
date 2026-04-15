@@ -3,6 +3,8 @@
 # Projects 3D LiDAR point clouds onto 2D ZED images and densifies them
 
 
+import argparse
+
 import numpy as np
 
 import cv2
@@ -24,6 +26,12 @@ import matplotlib.pyplot as plt
 from scipy.spatial.transform import Rotation as R
 
 from scipy.interpolate import griddata
+
+
+SUPPORTED_TRANSFORM_MODES = (
+    "production_current",
+    "exact_lidar_parent_child_inverted",
+)
 
 # --- 1. SENSOR CALIBRATION MATH ---
 
@@ -58,49 +66,111 @@ dist_coeffs = np.array(
 )
 
 
-def get_lidar_to_zed_transform():
-    """Chains the transforms from LiDAR -> Blackfly -> ZED Left"""
+def _blackfly_in_velodyne_matrix():
+    """LiDAR/Velodyne to Blackfly calibration from 03-lidar-cam-result.txt."""
 
-    # Velodyne to Blackfly (from 00-extrinsic-param-summary.jpg)
-
-    t_v_b = np.array([0.2178, 0.0049, -0.0645])
+    t_v_b = np.array([0.2178, 0.0049, -0.0645], dtype=np.float64)
 
     q_v_b = [0.5076, -0.4989, 0.4960, -0.4974]  # qx, qy, qz, qw
 
-    T_blackfly_in_velodyne = np.eye(4)
+    transform = np.eye(4, dtype=np.float64)
 
-    T_blackfly_in_velodyne[:3, :3] = R.from_quat(q_v_b).as_matrix()
+    transform[:3, :3] = R.from_quat(q_v_b).as_matrix()
 
-    T_blackfly_in_velodyne[:3, 3] = t_v_b
+    transform[:3, 3] = t_v_b
 
-    # Blackfly to ZED Left (from 00-extrinsic-param-summary.jpg)
+    return transform
 
-    # From Calibration/results/01-multi-cam-result.yaml (cam1 T_cn_cnm1 wrt cam0)
-    t_b_z = np.array([0.0662723093557627, -0.09569616160968707, 0.015430994971725126])
+
+def _zed_in_blackfly_approx_matrix():
+    """Current production approximation of ZED-left relative to Blackfly."""
+
+    t_b_z = np.array(
+        [0.0662723093557627, -0.09569616160968707, 0.015430994971725126],
+        dtype=np.float64,
+    )
 
     q_b_z = [0.0020, -0.0081, 0.0031, 1.0000]
 
-    T_zed_in_blackfly = np.eye(4)
+    transform = np.eye(4, dtype=np.float64)
 
-    T_zed_in_blackfly[:3, :3] = R.from_quat(q_b_z).as_matrix()
+    transform[:3, :3] = R.from_quat(q_b_z).as_matrix()
 
-    T_zed_in_blackfly[:3, 3] = t_b_z
+    transform[:3, 3] = t_b_z
 
-    # Chain them: T_zed_in_velodyne = T_blackfly_in_velodyne * T_zed_in_blackfly
+    return transform
 
-    T_zed_in_velodyne = T_blackfly_in_velodyne @ T_zed_in_blackfly
 
-    # We need to map points FROM velodyne TO zed, so we invert the matrix
+def _zed_in_blackfly_exact_matrix():
+    """Exact cam1 T_cn_cnm1 matrix from Calibration/results/01-multi-cam-result.yaml."""
 
-    T_velodyne_to_zed = np.linalg.inv(T_zed_in_velodyne)
+    return np.array(
+        [
+            [
+                0.9998650339614799,
+                0.0031122479822752415,
+                0.016131576913166447,
+                0.0662723093557627,
+            ],
+            [
+                -0.003176059444429916,
+                0.9999872275888487,
+                0.00393157800043866,
+                -0.09569616160968707,
+            ],
+            [
+                -0.016119134828334568,
+                -0.003982282218139419,
+                0.9998621479587678,
+                0.015430994971725126,
+            ],
+            [0.0, 0.0, 0.0, 1.0],
+        ],
+        dtype=np.float64,
+    )
 
-    # Extract OpenCV rotation vector (rvec) and translation vector (tvec)
 
-    rvec, _ = cv2.Rodrigues(T_velodyne_to_zed[:3, :3])
+def matrix_to_rvec_tvec(transform):
+    rvec, _ = cv2.Rodrigues(transform[:3, :3])
 
-    tvec = T_velodyne_to_zed[:3, 3]
+    tvec = transform[:3, 3]
 
     return rvec, tvec
+
+
+def lidar_to_zed_matrix(transform_mode="production_current"):
+    """Build LiDAR-to-ZED transform variants for production and comparison runs."""
+
+    if transform_mode == "production_current":
+
+        # Mirrors the original densify_lidar chain exactly so old results remain reproducible.
+        t_blackfly_in_velodyne = _blackfly_in_velodyne_matrix()
+
+        t_zed_in_blackfly = _zed_in_blackfly_approx_matrix()
+
+        t_zed_in_velodyne = t_blackfly_in_velodyne @ t_zed_in_blackfly
+
+        return np.linalg.inv(t_zed_in_velodyne)
+
+    if transform_mode == "exact_lidar_parent_child_inverted":
+
+        # Uses the exact ZED-left YAML matrix and the visually plausible inverted LiDAR->Blackfly convention.
+        t_lidar_to_blackfly = np.linalg.inv(_blackfly_in_velodyne_matrix())
+
+        t_blackfly_to_zed = _zed_in_blackfly_exact_matrix()
+
+        return t_blackfly_to_zed @ t_lidar_to_blackfly
+
+    raise ValueError(
+        f"Unknown transform_mode '{transform_mode}'. "
+        f"Expected one of: {', '.join(SUPPORTED_TRANSFORM_MODES)}"
+    )
+
+
+def get_lidar_to_zed_transform(transform_mode="production_current"):
+    """Return OpenCV rvec/tvec for a named LiDAR-to-ZED transform mode."""
+
+    return matrix_to_rvec_tvec(lidar_to_zed_matrix(transform_mode))
 
 
 # --- 2. PIPELINE LOGIC ---
@@ -201,6 +271,7 @@ def find_closest_lidar(
     lidar_files=None,
     require_same_session=True,
     max_delta_ns=None,
+    fallback_to_any_session=False,
 ):
 
     target_time = extract_timestamp(rgb_path)
@@ -219,29 +290,39 @@ def find_closest_lidar(
 
         return None, float("inf")
 
-    candidate_files = all_lidar_files
+    def _match_with(files):
+
+        if not files:
+
+            return None, float("inf")
+
+        closest_file, min_diff = find_nearest_file_by_timestamp(target_time, files)
+
+        if max_delta_ns is not None and min_diff > max_delta_ns:
+
+            return None, min_diff
+
+        return closest_file, min_diff
 
     if require_same_session:
 
         session_token = extract_session_token(rgb_path)
 
-        candidate_files = [
+        same_session_files = [
             f for f in all_lidar_files if extract_session_token(f) == session_token
         ]
 
-        if not candidate_files:
+        closest_file, min_diff = _match_with(same_session_files)
 
-            return None, float("inf")
+        if closest_file is not None:
 
-    closest_file, min_diff = find_nearest_file_by_timestamp(
-        target_time, candidate_files
-    )
+            return closest_file, min_diff
 
-    if max_delta_ns is not None and min_diff > max_delta_ns:
+        if not fallback_to_any_session:
 
-        return None, min_diff
+            return None, min_diff
 
-    return closest_file, min_diff
+    return _match_with(all_lidar_files)
 
 
 def find_first_valid_pair(
@@ -249,6 +330,7 @@ def find_first_valid_pair(
     lidar_files,
     require_same_session=True,
     max_delta_ns=None,
+    fallback_to_any_session=False,
 ):
 
     for rgb_path in rgb_files:
@@ -258,6 +340,7 @@ def find_first_valid_pair(
             lidar_files=lidar_files,
             require_same_session=require_same_session,
             max_delta_ns=max_delta_ns,
+            fallback_to_any_session=fallback_to_any_session,
         )
 
         if lidar_path is not None:
@@ -369,12 +452,14 @@ def build_metrics_row(
     sparse_morph_iters,
     max_interp_depth_m,
     clamp_only_interpolated,
+    transform_mode="production_current",
 ):
 
     return {
         "rgb_file": os.path.basename(rgb_file),
         "lidar_file": os.path.basename(lidar_file),
         "time_delta_ms": round(delta_ns / 1e6, 3),
+        "transform_mode": transform_mode,
         "interpolation_method": interpolation_method,
         "distance_mask_px": distance_mask_px,
         "enable_sparse_morph": enable_sparse_morph,
@@ -512,38 +597,50 @@ def get_file_timestamp_map(files):
     return mapping
 
 
-def find_closest_optimized(target_time, target_session, lidar_map, require_same_session=True, max_delta_ns=None):
+def find_closest_optimized(
+    target_time,
+    target_session,
+    lidar_map,
+    require_same_session=True,
+    max_delta_ns=None,
+    fallback_to_any_session=False,
+):
     """Uses binary search on a pre-cached map for 1000x faster pairing."""
     if not lidar_map:
         return None, float("inf")
-    
-    # Filter by session first if required (slightly slower but safer)
+
+    def _closest_from(candidates):
+        if not candidates:
+            return None, float("inf")
+
+        times = [item[0] for item in candidates]
+        idx = bisect_left(times, target_time)
+
+        best_candidate = None
+        min_diff = float("inf")
+
+        # Check current and previous for closest
+        for i in [idx, idx - 1]:
+            if 0 <= i < len(candidates):
+                diff = abs(candidates[i][0] - target_time)
+                if diff < min_diff:
+                    min_diff = diff
+                    best_candidate = candidates[i][1]
+
+        if max_delta_ns is not None and min_diff > max_delta_ns:
+            return None, min_diff
+
+        return best_candidate, min_diff
+
     if require_same_session:
-        candidates = [item for item in lidar_map if item[2] == target_session]
-    else:
-        candidates = lidar_map
-        
-    if not candidates:
-        return None, float("inf")
-        
-    times = [item[0] for item in candidates]
-    idx = bisect_left(times, target_time)
-    
-    best_candidate = None
-    min_diff = float("inf")
-    
-    # Check current and previous for closest
-    for i in [idx, idx-1]:
-        if 0 <= i < len(candidates):
-            diff = abs(candidates[i][0] - target_time)
-            if diff < min_diff:
-                min_diff = diff
-                best_candidate = candidates[i][1]
-                
-    if max_delta_ns is not None and min_diff > max_delta_ns:
-        return None, min_diff
-        
-    return best_candidate, min_diff
+        same_session_candidates = [item for item in lidar_map if item[2] == target_session]
+        best_candidate, min_diff = _closest_from(same_session_candidates)
+        if best_candidate is not None:
+            return best_candidate, min_diff
+        if not fallback_to_any_session:
+            return None, min_diff
+
+    return _closest_from(lidar_map)
 
 
 def project_and_densify(
@@ -719,9 +816,14 @@ lidar_folder = "extracted_lidar/velodyne_points"
 output_folder = "extracted_dense_lidar"
 
 
+TRANSFORM_MODE = "production_current"
+
+
 MAX_TIME_DELTA_SEC = 0.5
 
 REQUIRE_SAME_SESSION = True
+
+FALLBACK_TO_ANY_SESSION = True
 
 INTERPOLATION_METHOD = "linear"
 
@@ -752,9 +854,40 @@ SWEEP_MAX_INTERP_DEPTH_M = [20.0, 28.0, None]
 
 if __name__ == "__main__":
 
+    parser = argparse.ArgumentParser(
+        description="Project Citrus Farm LiDAR into ZED image space and create dense labels."
+    )
+
+    parser.add_argument(
+        "--transform_mode",
+        default=TRANSFORM_MODE,
+        choices=SUPPORTED_TRANSFORM_MODES,
+        help="LiDAR-to-ZED calibration convention to use.",
+    )
+
+    parser.add_argument(
+        "--compare_transform_modes",
+        action="store_true",
+        help="Run the two visually plausible transform modes side by side on the debug pair.",
+    )
+
+    parser.add_argument(
+        "--output_folder",
+        default=output_folder,
+        help="Folder for diagnostic dense outputs, metrics, and panels.",
+    )
+
+    args = parser.parse_args()
+
+    output_folder = args.output_folder
+
     os.makedirs(output_folder, exist_ok=True)
 
-    rvec, tvec = get_lidar_to_zed_transform()
+    transform_modes = (
+        list(SUPPORTED_TRANSFORM_MODES)
+        if args.compare_transform_modes
+        else [args.transform_mode]
+    )
 
     # Grab the first RGB image just to test one pair visually
 
@@ -783,6 +916,7 @@ if __name__ == "__main__":
         all_lidar,
         require_same_session=REQUIRE_SAME_SESSION,
         max_delta_ns=int(MAX_TIME_DELTA_SEC * 1e9),
+        fallback_to_any_session=FALLBACK_TO_ANY_SESSION,
     )
 
     if test_rgb_path is None or matched_lidar_path is None:
@@ -807,7 +941,9 @@ if __name__ == "__main__":
 
         raise SystemExit(
             "Could not find any valid RGB-LiDAR pair under current constraints. "
-            f"Constraint: delta <= {MAX_TIME_DELTA_SEC:.3f}s, same-session={REQUIRE_SAME_SESSION}. "
+            f"Constraint: delta <= {MAX_TIME_DELTA_SEC:.3f}s, "
+            f"same-session={REQUIRE_SAME_SESSION}, "
+            f"fallback-any-session={FALLBACK_TO_ANY_SESSION}. "
             f"Diagnostic: {fallback_msg}."
         )
 
@@ -831,34 +967,43 @@ if __name__ == "__main__":
 
     if RUN_PARAMETER_SWEEP:
 
-        for idx, (interp, mask_px, max_depth) in enumerate(
-            product(
-                SWEEP_INTERPOLATION_METHODS,
-                SWEEP_DISTANCE_MASK_PX,
-                SWEEP_MAX_INTERP_DEPTH_M,
-            ),
-            start=1,
-        ):
+        for transform_mode in transform_modes:
 
-            configs.append(
-                {
-                    "interpolation_method": interp,
-                    "distance_mask_px": mask_px,
-                    "max_interp_depth_m": max_depth,
-                    "name_suffix": f"cfg_{idx:02d}_{interp}_m{mask_px}_d{str(max_depth).replace('.', 'p')}",
-                }
-            )
+            for idx, (interp, mask_px, max_depth) in enumerate(
+                product(
+                    SWEEP_INTERPOLATION_METHODS,
+                    SWEEP_DISTANCE_MASK_PX,
+                    SWEEP_MAX_INTERP_DEPTH_M,
+                ),
+                start=1,
+            ):
+
+                configs.append(
+                    {
+                        "transform_mode": transform_mode,
+                        "interpolation_method": interp,
+                        "distance_mask_px": mask_px,
+                        "max_interp_depth_m": max_depth,
+                        "name_suffix": (
+                            f"{transform_mode}_cfg_{idx:02d}_{interp}_m{mask_px}_"
+                            f"d{str(max_depth).replace('.', 'p')}"
+                        ),
+                    }
+                )
 
     else:
 
-        configs.append(
-            {
-                "interpolation_method": INTERPOLATION_METHOD,
-                "distance_mask_px": DISTANCE_MASK_PX,
-                "max_interp_depth_m": MAX_INTERP_DEPTH_M,
-                "name_suffix": "default",
-            }
-        )
+        for transform_mode in transform_modes:
+
+            configs.append(
+                {
+                    "transform_mode": transform_mode,
+                    "interpolation_method": INTERPOLATION_METHOD,
+                    "distance_mask_px": DISTANCE_MASK_PX,
+                    "max_interp_depth_m": MAX_INTERP_DEPTH_M,
+                    "name_suffix": transform_mode,
+                }
+            )
 
     run_results = []
 
@@ -866,10 +1011,13 @@ if __name__ == "__main__":
 
         print(
             f"\nRunning config {cfg_idx}/{len(configs)}: "
+            f"transform={cfg['transform_mode']}, "
             f"interp={cfg['interpolation_method']}, "
             f"mask={cfg['distance_mask_px']}px, "
             f"max_interp_depth={cfg['max_interp_depth_m']}"
         )
+
+        rvec, tvec = get_lidar_to_zed_transform(cfg["transform_mode"])
 
         try:
 
@@ -913,6 +1061,7 @@ if __name__ == "__main__":
             SPARSE_MORPH_ITERS,
             cfg["max_interp_depth_m"],
             CLAMP_ONLY_INTERPOLATED,
+            cfg["transform_mode"],
         )
 
         run_results.append(
