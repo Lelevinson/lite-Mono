@@ -148,3 +148,6 @@ datasets/citrus-farm-dataset/extracted_dense_lidar
 datasets/citrus-farm-dataset/prepared_training_dataset
 datasets/citrus-farm-dataset/prepared_training_dataset*
 datasets/citrus-farm-dataset/projection_alignment_audit
+
+# Generated presentation/demo artifacts
+reports/generated/

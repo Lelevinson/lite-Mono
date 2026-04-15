@@ -1,12 +1,12 @@
 # Citrus Farm Dataset Processing Presentation Guide
 
-Purpose: a 4-slide guide for your part of the group presentation. Your teammates can explain the dataset source, download, and extraction. Your part starts after that: checking whether RGB and LiDAR line up, explaining how LiDAR labels are made, and showing the current route decision.
+Purpose: a 5-slide guide for your part of the group presentation. Your teammates can explain the dataset source, download, and extraction. Your part starts after that: checking whether RGB and LiDAR line up, explaining how LiDAR labels are made, showing the current route decision, and connecting it to the next research stage.
 
 Use simple wording first. Add the technical word only after the simple idea is clear.
 
 ## Overall Message
 
-> We already have a working pipeline that can create LiDAR-based depth labels, masks, visuals, and metrics. But the final dataset is not locked yet because label quality is a research decision. We prefer trustworthy labels with holes over fake dense labels.
+> We already have a working pipeline that can create LiDAR-based depth labels, masks, visuals, and metrics. But the final dataset is not locked yet because label quality is a research decision. We prefer trustworthy labels with holes over fake dense labels. After that is locked, the project moves from dataset preparation into Lite-Mono research experiments.
 
 ## Useful Simple Terms
 
@@ -37,6 +37,7 @@ My part:
 2. Turn sparse LiDAR into usable depth labels
 3. Compare two possible label routes
 4. Decide what still needs validation
+5. Connect this to the next research stage
 ```
 
 Add this short status box:
@@ -182,8 +183,10 @@ Put on the slide:
 ```text
 12-sample local_idw audit
 
-Use the screenshot table from:
-reports/slide4_route_comparison_table.html
+Use the clean metrics table screenshot:
+
+Route A = production_current
+Route B = exact_lidar_parent_child_inverted
 ```
 
 Add this final decision box:
@@ -232,7 +235,63 @@ Simple conclusion:
 
 > Route A gives more coverage. Route B looks cleaner. The next step is to validate this trend before locking the final dataset.
 
-## 2-Minute Speaking Script
+## Slide 5 - Next Stage
+
+Slide title:
+
+`Next Stage: From Dataset Pipeline To Model Research`
+
+Put on the slide:
+
+```text
+Where we are now:
+Milestone 0 - dataset and label-quality audit
+
+Small baseline demo:
+Original Lite-Mono can already run on one Citrus RGB image.
+This starts the baseline milestone, but does not complete it yet.
+
+Next after professor feedback:
+1. Lock label route, dataset version, and splits
+2. Test original Lite-Mono on Citrus scenes
+3. Add Citrus-specific training/evaluation
+4. Fine-tune or adapt Lite-Mono on Citrus RGB
+5. Propose one lightweight vegetation-focused improvement
+```
+
+Add this status box:
+
+```text
+Milestones are proposed research targets.
+They are not final paper claims yet.
+Professor feedback will help lock the order and priority.
+```
+
+Suggested visual:
+
+Use a simple horizontal roadmap, not another depth image:
+
+```text
+Dataset audit -> Baseline -> Citrus training -> Lightweight improvement -> Paper results
+```
+
+Speaker notes:
+
+> This dataset work is not the whole research, but it is the foundation. If the labels are wrong, the later model results will not be meaningful.
+>
+> So right now we are basically finishing Milestone 0: checking the dataset, the alignment, and the label quality.
+>
+> We can already run original Lite-Mono on one Citrus RGB image as a quick baseline demo. But that is not the full baseline milestone yet. To complete it, we still need a proper validation or test set, comparison against trusted LiDAR labels, and failure-case analysis.
+>
+> After we get feedback and lock the label route, the next stage is model research. First, we test original Lite-Mono on Citrus scenes to show the domain gap. Then we add Citrus-specific training and evaluation. After that, we can propose one lightweight improvement for vegetation-heavy scenes, while keeping the model suitable for a small robot.
+>
+> The milestones are our current best roadmap, but they are not final paper claims yet. We still need advisor feedback before locking the exact order.
+
+Simple conclusion:
+
+> The dataset pipeline gives us trustworthy labels. The next stage uses those labels to measure, adapt, and improve Lite-Mono for citrus/orchard scenes.
+
+## Speaking Script
 
 My part starts after the dataset has already been downloaded and extracted. At that point, we have RGB images, LiDAR scans, and ZED depth files. But raw files alone are not enough. We need to check whether the labels we create from LiDAR are trustworthy.
 
@@ -248,9 +307,11 @@ In the current 12-sample audit, Route A gives more coverage, around 43.31 percen
 
 So our current conclusion is: Route A gives more labeled pixels, but Route B may be cleaner. We should not lock the final dataset yet. The next step is a more time-spread validation probe before building the full dataset.
 
+After that, the project moves into the model research stage. We can already run original Lite-Mono on one Citrus RGB image, so we can show a small baseline demo. But I would describe this as starting the baseline milestone, not completing it yet. To complete it, we still need proper evaluation against trusted labels. Then we add Citrus-specific training and evaluation, and later test one lightweight improvement focused on vegetation-heavy scenes. These milestones are our current proposed roadmap, not final paper claims yet.
+
 ## 30-Second Version
 
-My part checks whether the extracted RGB and LiDAR data can produce trustworthy depth labels. First, we verify that LiDAR points line up with the camera image. Then we convert sparse LiDAR scanlines into semi-dense labels, but we avoid filling uncertain vegetation gaps too aggressively. The current safer method creates more holes, but those holes mean the pixel is not trusted. In the current audit, Route A gives more coverage, while Route B agrees better with ZED depth. So Route B is a serious candidate, but we still need a time-spread validation probe before the final dataset build.
+My part checks whether the extracted RGB and LiDAR data can produce trustworthy depth labels. First, we verify that LiDAR points line up with the camera image. Then we convert sparse LiDAR scanlines into semi-dense labels, but we avoid filling uncertain vegetation gaps too aggressively. In the current audit, Route A gives more coverage, while Route B agrees better with ZED depth. So Route B is a serious candidate, but we still need a time-spread validation probe before the final dataset build. After that, the next stage is model research: baseline Lite-Mono, Citrus training/evaluation, and one lightweight improvement for vegetation-heavy scenes.
 
 ## What To Keep Ready For Questions
 
@@ -264,4 +325,4 @@ Keep these ready, but do not put all of them into the main slides:
 
 ## Main Takeaway
 
-> The pipeline can create LiDAR-based labels, but label quality matters more than making the label look full. A depth model should output a full image, but our labels should only mark pixels we actually trust.
+> The pipeline can create LiDAR-based labels, but label quality matters more than making the label look full. A depth model should output a full image, but our labels should only mark pixels we actually trust. Once that foundation is locked, we can move into the Lite-Mono baseline, Citrus adaptation, and lightweight vegetation-focused improvement stages.

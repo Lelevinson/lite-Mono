@@ -185,6 +185,17 @@ Legacy linear metrics probe result (2026-04-15):
    - ZED-vs-LiDAR relative difference: 0.074806
 5. Current interpretation: `local_idw` intentionally creates more holes than linear interpolation because it refuses uncertain fills. This is preferable to fake dense vegetation surfaces for evaluation/training labels.
 
+## Original Lite-Mono Citrus Sanity Run (2026-04-16)
+
+1. Ran original pretrained `weights/lite-mono` on one copied Citrus RGB image using `test_simple.py`.
+2. Keep Lite-Mono demo outputs out of extracted dataset folders. The RGB image should be copied to an ignored demo/output folder before running `test_simple.py`, because `test_simple.py` writes `*_disp.jpeg` and `*_disp.npy` next to the input image.
+3. Command used:
+   - `D:/Conda_Envs/lite-mono/python.exe test_simple.py --load_weights_folder weights/lite-mono --image_path reports/generated/lite_mono_single_image_demo/zed_2023-07-18-14-26-49_0_bag_1689715609331936216.png --model lite-mono --no_cuda`
+4. Output files were generated under ignored `reports/generated/lite_mono_single_image_demo/`, not under the dataset folder:
+   - `reports/generated/lite_mono_single_image_demo/zed_2023-07-18-14-26-49_0_bag_1689715609331936216_disp.jpeg`
+   - `reports/generated/lite_mono_single_image_demo/zed_2023-07-18-14-26-49_0_bag_1689715609331936216_disp.npy`
+5. Interpretation: this is a qualitative baseline sanity/demo run only. It starts the Citrus baseline milestone but does not complete it, because Milestone 1 still requires validation/test-set evaluation against LiDAR-densified labels, masks, runtime/size reporting, and failure-case analysis.
+
 ## Current Local Data Snapshot (2026-04-01)
 
 Observed after recent local script/data changes:
@@ -260,9 +271,10 @@ Current communication stance:
 
 1. The old reports/professor folder was removed because the research structure is being refreshed.
 2. Keep new progress/presentation scripts directly under reports/ unless a clearer report taxonomy is created later.
-3. The current dataset-processing presentation guide is a 4-slide version for the user's part only, with fuller slide text and simple speaker notes.
+3. The current dataset-processing presentation guide is a 5-slide version for the user's part only, with fuller slide text and simple speaker notes.
 4. Slide 4 should use a clean route-comparison metrics table because Slide 3 already shows projection/detail images.
-5. Explain interpolation as a useful initial gap-filling method, not as perfect ground truth. Use "LiDAR-densified depth labels with valid masks" for paper-facing language.
+5. Slide 5 should connect the dataset audit to the next research stage: lock labels/splits, run original Lite-Mono on Citrus, add Citrus training/evaluation, then test a lightweight vegetation-focused improvement.
+6. Explain interpolation as a useful initial gap-filling method, not as perfect ground truth. Use "LiDAR-densified depth labels with valid masks" for paper-facing language.
 
 ## Core Tunables
 
@@ -440,6 +452,12 @@ Audit:
 2. Inspect generated overlays/details under projection_alignment_audit/ before trusting LiDAR-densified labels.
 3. D:/Conda_Envs/lite-mono/python.exe densify_lidar.py --compare_transform_modes
 
+One-image original Lite-Mono Citrus sanity run:
+
+1. Copy the selected RGB image into `reports/generated/lite_mono_single_image_demo/` first, because this folder is ignored and not part of the dataset.
+2. D:/Conda_Envs/lite-mono/python.exe test_simple.py --load_weights_folder weights/lite-mono --image_path reports/generated/lite_mono_single_image_demo/zed_2023-07-18-14-26-49_0_bag_1689715609331936216.png --model lite-mono --no_cuda
+3. Output appears next to the copied input image as `*_disp.jpeg` and `*_disp.npy`.
+
 ## Change Log
 
 - 2026-03-31: Created AGENTS.md with mandatory read/update workflow and Citrus pipeline context.
@@ -476,6 +494,9 @@ Audit:
 - 2026-04-16: Reworked reports/citrus_farm_dataset_processing_presentation.md into a 4-slide guide for the user's presentation section, with more slide-ready text and simple speaker notes covering line-up checks, sparse-to-semidense labels, valid masks, route metrics, and the next validation step.
 - 2026-04-16: Added reports/slide4_route_comparison_table.html as a screenshot-friendly Route A versus Route B metrics table for Slide 4, and updated the presentation guide with simple explanations for each metric.
 - 2026-04-16: Removed the temporary Slide 4 HTML screenshot helper after use; kept the slide guide's metric explanations and table guidance.
+- 2026-04-16: Extended reports/citrus_farm_dataset_processing_presentation.md to a 5-slide guide with a closing "next stage" slide that links the dataset audit to the proposed research milestones and clarifies that milestones are proposed targets pending advisor feedback.
+- 2026-04-16: Ran one original Lite-Mono pretrained sanity prediction on an extracted Citrus RGB frame, recorded the command/output files, and clarified that this starts but does not complete the Citrus baseline milestone.
+- 2026-04-16: Removed the generated original Lite-Mono `*_disp` outputs from the extracted RGB dataset folder, reran the one-image demo from ignored `reports/generated/lite_mono_single_image_demo/`, and added `reports/generated/` to `.gitignore` so demo artifacts stay separate from dataset artifacts.
 
 ## Update Template (Append On Future Changes)
 
