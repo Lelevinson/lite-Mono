@@ -251,6 +251,55 @@ def inverse_depth_for_display(
     return np.ma.masked_where(~valid, inverse)
 
 
+def brightened_colormap(name: str, brighten_floor: float = 0.35) -> matplotlib.colors.ListedColormap:
+    base = plt.get_cmap(name)(np.linspace(0.0, 1.0, 256))
+    base[:, :3] = brighten_floor + (1.0 - brighten_floor) * base[:, :3]
+    cmap = matplotlib.colors.ListedColormap(base, name=f"{name}_bright")
+    cmap.set_bad(color="black", alpha=1.0)
+    return cmap
+
+
+def sparse_depth_rgb_for_display(
+    sparse_depth: np.ndarray,
+    min_depth_m: float = 1.0,
+    max_depth_m: float = 28.0,
+    brighten_floor: float = 0.6,
+    line_dilate_px: int = 3,
+) -> np.ndarray:
+    valid = positive_depth_mask(sparse_depth)
+    rgb = np.zeros((*sparse_depth.shape, 3), dtype=np.uint8)
+    if not np.any(valid):
+        return rgb
+
+    clipped = np.clip(sparse_depth.astype(np.float32), min_depth_m, max_depth_m)
+    inverse = np.zeros_like(clipped, dtype=np.float32)
+    inverse[valid] = 1.0 / clipped[valid]
+    inverse_vals = inverse[valid]
+
+    lo, hi = np.percentile(inverse_vals, [1.0, 99.0])
+    if not np.isfinite(lo) or not np.isfinite(hi) or hi <= lo:
+        lo = float(np.min(inverse_vals))
+        hi = float(np.max(inverse_vals))
+    hi = max(hi, lo + 1e-6)
+
+    normalized = np.zeros_like(inverse, dtype=np.float32)
+    normalized[valid] = np.clip((inverse[valid] - lo) / (hi - lo), 0.0, 1.0)
+
+    sparse_cmap = brightened_colormap("turbo", brighten_floor=brighten_floor)
+    colored = (sparse_cmap(normalized)[..., :3] * 255.0).astype(np.uint8)
+    rgb[valid] = colored[valid]
+
+    if line_dilate_px > 1:
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (line_dilate_px, line_dilate_px))
+        dilated_mask = cv2.dilate(valid.astype(np.uint8), kernel, iterations=1).astype(bool)
+        dilated_rgb = np.zeros_like(rgb)
+        for ch in range(3):
+            dilated_rgb[:, :, ch] = cv2.dilate(rgb[:, :, ch], kernel, iterations=1)
+        rgb = np.where(dilated_mask[..., None], dilated_rgb, 0)
+
+    return rgb
+
+
 def show_missing_depth(ax, rgb: np.ndarray) -> None:
     ax.imshow(np.zeros(rgb.shape[:2]), cmap="gray")
 
@@ -278,7 +327,7 @@ def make_detail_panel(
 
     ax = plt.subplot(2, 4, 2)
     ax.set_title(f"Sparse LiDAR depth ({transform_label})")
-    ax.imshow(masked_depth_for_display(sparse_depth), cmap="turbo", vmin=1.0, vmax=28.0)
+    ax.imshow(sparse_depth_rgb_for_display(sparse_depth))
     ax.axis("off")
 
     ax = plt.subplot(2, 4, 3)
@@ -400,7 +449,17 @@ def main() -> None:
     parser.add_argument("--max_samples", type=int, default=5)
     parser.add_argument("--max_time_delta_sec", type=float, default=0.5)
     parser.add_argument("--max_zed_depth_delta_sec", type=float, default=0.25)
+    parser.add_argument(
+        "--interpolation_method",
+        default="local_idw",
+        choices=dld.SUPPORTED_INTERPOLATION_METHODS,
+        help="Dense-label interpolation method for the detail panels.",
+    )
     parser.add_argument("--distance_mask_px", type=int, default=25)
+    parser.add_argument("--local_idw_k", type=int, default=4)
+    parser.add_argument("--local_idw_power", type=float, default=2.0)
+    parser.add_argument("--local_idw_max_depth_spread_m", type=float, default=1.25)
+    parser.add_argument("--local_idw_max_relative_depth_spread", type=float, default=0.35)
     parser.add_argument("--zed_uint16_scale", type=float, default=0.001)
     parser.add_argument("--seed", type=int, default=42)
     args = parser.parse_args()
@@ -510,13 +569,17 @@ def main() -> None:
                     rvec,
                     tvec,
                     img_shape=img_shape,
-                    interpolation_method="linear",
+                    interpolation_method=args.interpolation_method,
                     distance_mask_px=args.distance_mask_px,
                     enable_sparse_morph=True,
                     sparse_morph_kernel=3,
                     sparse_morph_iters=1,
                     max_interp_depth_m=28.0,
                     clamp_only_interpolated=True,
+                    local_idw_k=args.local_idw_k,
+                    local_idw_power=args.local_idw_power,
+                    local_idw_max_depth_spread_m=args.local_idw_max_depth_spread_m,
+                    local_idw_max_relative_depth_spread=args.local_idw_max_relative_depth_spread,
                     verbose=False,
                     return_extras=True,
                 )

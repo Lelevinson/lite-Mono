@@ -124,6 +124,7 @@ Fixes completed on 2026-04-15:
 8. Added selectable LiDAR-to-ZED transform modes in densify_lidar.py: `production_current` and `exact_lidar_parent_child_inverted`.
 9. build*training_dataset.py now accepts `--transform_mode`; alternate transform runs default to a separate output folder named `prepared_training_dataset*<transform_mode>`unless`--output_dir` is explicitly provided.
 10. Builder metrics now record `transform_mode`, and regression tests cover transform availability plus manifest tagging.
+11. The default dense-label interpolation is now `local_idw`, a conservative local inverse-distance weighted fill that rejects candidate pixels when nearby LiDAR depths disagree too much. This replaced `linear` grid interpolation as the default because full 2D linear triangulation produced visually implausible surfaces in vegetation scenes.
 
 Manual projection-audit observation (2026-04-15):
 
@@ -135,13 +136,14 @@ Manual projection-audit observation (2026-04-15):
 6. User inspected the clean 12-sample audit and judged `production_current` versus `exact_lidar_parent_child_inverted` as mostly tied; the main visible difference remains narrower purple projected scanline spacing in `exact_lidar_parent_child_inverted`.
 7. Because the larger visual audit is a tie, keep `production_current` as the default label-generation transform unless later quantitative checks against ZED depth or model-evaluation behavior show a clear advantage for the alternate transform.
 
-Metrics probe result (2026-04-15):
+Legacy linear metrics probe result (2026-04-15):
 
-1. Generated two 50-sample metrics probes, not full datasets:
+1. Generated two 50-sample metrics probes using the older `linear` interpolation method, not full datasets:
    - `prepared_training_dataset_metrics_probe_50/` using `production_current`
    - `prepared_training_dataset_metrics_probe_50_exact/` using `exact_lidar_parent_child_inverted`
-2. Both probes used the first 50 matched RGB-LiDAR samples, so split validation is not meaningful yet: all 50 samples fall into one time block and therefore train=50, val=0, test=0.
-3. `production_current` probe summary:
+2. These probe outputs still exist locally, but they are legacy comparison artifacts now that default dense-label interpolation has changed to `local_idw`.
+3. Both probes used the first 50 matched RGB-LiDAR samples, so split validation is not meaningful yet: all 50 samples fall into one time block and therefore train=50, val=0, test=0.
+4. `production_current` legacy-linear probe summary:
    - median RGB-LiDAR delta: 39.211 ms
    - median dense fill ratio: 0.541213
    - median sparse fill ratio: 0.009131
@@ -150,7 +152,7 @@ Metrics probe result (2026-04-15):
    - median ZED/LiDAR overlap ratio: 0.355920
    - median ZED-vs-LiDAR absolute difference: 0.631544 m
    - median ZED-vs-LiDAR relative difference: 0.379210
-4. `exact_lidar_parent_child_inverted` probe summary:
+5. `exact_lidar_parent_child_inverted` legacy-linear probe summary:
    - median RGB-LiDAR delta: 39.211 ms
    - median dense fill ratio: 0.439080
    - median sparse fill ratio: 0.009071
@@ -159,8 +161,29 @@ Metrics probe result (2026-04-15):
    - median ZED/LiDAR overlap ratio: 0.297551
    - median ZED-vs-LiDAR absolute difference: 0.205901 m
    - median ZED-vs-LiDAR relative difference: 0.084877
-5. Initial interpretation: `exact_lidar_parent_child_inverted` appears quantitatively closer to ZED depth on overlapping pixels, but it produces lower dense fill/overlap. This supports treating it as a serious candidate rather than a discarded alternate. Do not lock the final transform until a more time-spread probe verifies the trend.
-6. Observed risk: dense max values remain around 95-109 m because current `max_interp_depth_m=28.0` clamps only interpolated pixels while preserving far measured LiDAR points. This may be acceptable for raw labels but should be capped or masked consistently for model evaluation.
+6. Initial interpretation from the legacy-linear probe: `exact_lidar_parent_child_inverted` appeared quantitatively closer to ZED depth on overlapping pixels, but produced lower dense fill/overlap. Treat this as old supporting evidence only; current decisions should prioritize `local_idw` audit/probe results.
+7. Observed risk in the legacy-linear probe: dense max values remained around 95-109 m because `max_interp_depth_m=28.0` clamped only interpolated pixels while preserving far measured LiDAR points. This may be acceptable for raw labels but should be capped or masked consistently for model evaluation.
+
+## Current local_idw projection audit result (2026-04-15)
+
+1. Regenerated the normal ignored `projection_alignment_audit/` with 12 samples using `interpolation_method=local_idw`.
+2. Audit parameters recorded in `projection_alignment_audit/audit_summary.json`:
+   - `distance_mask_px=25`
+   - `local_idw_k=4`
+   - `local_idw_power=2.0`
+   - `local_idw_max_depth_spread_m=1.25`
+   - `local_idw_max_relative_depth_spread=0.35`
+3. 12-sample median result for `production_current`:
+   - dense fill ratio: 0.433060
+   - ZED/LiDAR overlap ratio: 0.219531
+   - ZED-vs-LiDAR absolute difference: 0.569570 m
+   - ZED-vs-LiDAR relative difference: 0.278299
+4. 12-sample median result for `exact_lidar_parent_child_inverted`:
+   - dense fill ratio: 0.365558
+   - ZED/LiDAR overlap ratio: 0.214457
+   - ZED-vs-LiDAR absolute difference: 0.193937 m
+   - ZED-vs-LiDAR relative difference: 0.074806
+5. Current interpretation: `local_idw` intentionally creates more holes than linear interpolation because it refuses uncertain fills. This is preferable to fake dense vegetation surfaces for evaluation/training labels.
 
 ## Current Local Data Snapshot (2026-04-01)
 
@@ -216,7 +239,8 @@ Depth-label storage versus visualization:
 3. PNG panels generated by audit_projection_alignment.py or densify_lidar.py are visual diagnostics only. They are useful for human inspection and paper figures, but they are not the source labels used for metric computation.
 4. Paper-style depth images should be generated later from numeric predictions and numeric labels using a consistent colormap and depth range.
 5. In audit detail panels, "LiDAR label visual (near bright)" is the human-facing depth-label visualization. "Support distance, not depth" is only a confidence/support-distance diagnostic and must not be interpreted as the depth label.
-6. Current `projection_alignment_audit/overlays/` panels compare all transform candidates. Current detail panels are split by the two plausible dense-label routes:
+6. In audit detail panels, the "Sparse LiDAR depth" subplot uses display-only brightening and light dilation for visibility. It does not change the sparse LiDAR depth array, dense labels, valid masks, or metrics.
+7. Current `projection_alignment_audit/overlays/` panels compare all transform candidates. Current detail panels are split by the two plausible dense-label routes:
    - `projection_alignment_audit/details_production_current/`
    - `projection_alignment_audit/details_exact_lidar_parent_child_inverted/`
      These detail folders provide human-facing dense-label visuals for both candidate routes.
@@ -231,14 +255,14 @@ Alternate transform comparison:
 Prepared for progress reporting and professor decision alignment:
 
 1. reports/citrus_farm_dataset_processing_presentation.md
-2. reports/citrus_farm_dataset_processing_presentation_concise.md
 
 Current communication stance:
 
 1. The old reports/professor folder was removed because the research structure is being refreshed.
 2. Keep new progress/presentation scripts directly under reports/ unless a clearer report taxonomy is created later.
-3. The concise presentation guide covers the calibration and densification story in 2-3 slides; the longer guide remains available for extended Q&A or a fuller update.
-4. Explain interpolation as a useful initial gap-filling method, not as perfect ground truth. Use "LiDAR-densified depth labels with valid masks" for paper-facing language.
+3. The current dataset-processing presentation guide is a 4-slide version for the user's part only, with fuller slide text and simple speaker notes.
+4. Slide 4 should use a clean route-comparison metrics table because Slide 3 already shows projection/detail images.
+5. Explain interpolation as a useful initial gap-filling method, not as perfect ground truth. Use "LiDAR-densified depth labels with valid masks" for paper-facing language.
 
 ## Core Tunables
 
@@ -252,13 +276,17 @@ Download and pairing:
 Densification quality:
 
 1. transform_mode (`production_current` default; `exact_lidar_parent_child_inverted` for alternate comparison)
-2. interpolation_method
+2. interpolation_method (`local_idw` default; `linear`, `nearest`, and `cubic` remain available for comparison)
 3. distance_mask_px
-4. enable_sparse_morph
-5. sparse_morph_kernel
-6. sparse_morph_iters
-7. max_interp_depth_m
-8. clamp_only_interpolated
+4. local_idw_k
+5. local_idw_power
+6. local_idw_max_depth_spread_m
+7. local_idw_max_relative_depth_spread
+8. enable_sparse_morph
+9. sparse_morph_kernel
+10. sparse_morph_iters
+11. max_interp_depth_m
+12. clamp_only_interpolated
 
 Builder filters and split:
 
@@ -440,6 +468,14 @@ Audit:
 - 2026-04-15: Reworked reports/professor/citrus_farm_projection_progress_script.md into a slide-oriented, layman-friendly presentation guide with simpler terms and explicit visual assets to show.
 - 2026-04-15: Removed the old reports/professor folder and replaced it with reports/citrus_farm_dataset_processing_presentation.md as the current slide/script guide for explaining calibration/line-up checks, densification, interpolation limits, metrics probes, and why the final dataset is not locked yet.
 - 2026-04-15: Added reports/citrus_farm_dataset_processing_presentation_concise.md as a 2-3 slide version focused on calibration, densification, and the early route-selection decision; kept the longer script as a backup for deeper discussion.
+- 2026-04-15: Fixed audit sparse-depth subplot visibility in audit_projection_alignment.py by using nearest-neighbor rendering and a non-transparent masked color (black) so projected sparse LiDAR scanlines no longer disappear against white panel backgrounds.
+- 2026-04-15: Brightened sparse LiDAR depth scanline colors in audit_projection_alignment.py (display-only) by using a brightened turbo colormap for the sparse-depth subplot so projected lines are easier to see while preserving the same underlying depth values and metrics.
+- 2026-04-15: Further enhanced sparse LiDAR depth readability in audit_projection_alignment.py by using percentile-normalized inverse-depth coloring plus light display-only line dilation so sparse scanlines appear visibly brighter/thicker on the black background.
+- 2026-04-15: Replaced default dense-label interpolation from global `linear` grid interpolation to conservative `local_idw` in densify_lidar.py, build_training_dataset.py, and audit_projection_alignment.py; local_idw fills near sparse LiDAR support but rejects pixels where nearby measured depths disagree, reducing fake vegetation/ground surfaces at the cost of lower coverage.
+- 2026-04-16: Verified AGENTS.md against current workspace after outside edits; marked the 50-sample metrics probes as legacy `linear` artifacts, added the current 12-sample `local_idw` audit metrics, and removed the stale current-artifact reference to the deleted concise presentation guide.
+- 2026-04-16: Reworked reports/citrus_farm_dataset_processing_presentation.md into a 4-slide guide for the user's presentation section, with more slide-ready text and simple speaker notes covering line-up checks, sparse-to-semidense labels, valid masks, route metrics, and the next validation step.
+- 2026-04-16: Added reports/slide4_route_comparison_table.html as a screenshot-friendly Route A versus Route B metrics table for Slide 4, and updated the presentation guide with simple explanations for each metric.
+- 2026-04-16: Removed the temporary Slide 4 HTML screenshot helper after use; kept the slide guide's metric explanations and table guidance.
 
 ## Update Template (Append On Future Changes)
 

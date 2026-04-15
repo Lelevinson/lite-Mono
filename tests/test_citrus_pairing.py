@@ -93,6 +93,41 @@ class PairingPolicyTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.dld.get_lidar_to_zed_transform("not_a_real_mode")
 
+    def test_local_idw_rejects_large_depth_jumps(self):
+        sparse = np.zeros((3, 5), dtype=np.float32)
+        sparse[1, 0] = 2.0
+        sparse[1, 4] = 8.0
+        candidate = np.ones_like(sparse, dtype=bool)
+
+        dense = self.dld.local_idw_interpolate(
+            sparse,
+            candidate,
+            k=2,
+            max_depth_spread_m=1.0,
+            max_relative_depth_spread=0.2,
+        )
+
+        self.assertEqual(dense[1, 0], 2.0)
+        self.assertEqual(dense[1, 4], 8.0)
+        self.assertEqual(dense[1, 2], 0.0)
+
+    def test_local_idw_fills_consistent_neighbors(self):
+        sparse = np.zeros((3, 5), dtype=np.float32)
+        sparse[1, 0] = 2.0
+        sparse[1, 4] = 2.2
+        candidate = np.ones_like(sparse, dtype=bool)
+
+        dense = self.dld.local_idw_interpolate(
+            sparse,
+            candidate,
+            k=2,
+            max_depth_spread_m=1.0,
+            max_relative_depth_spread=0.2,
+        )
+
+        self.assertGreater(dense[1, 2], 2.0)
+        self.assertLess(dense[1, 2], 2.2)
+
 
 if __name__ == "__main__":
     unittest.main()

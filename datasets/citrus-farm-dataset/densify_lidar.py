@@ -23,6 +23,8 @@ from bisect import bisect_left
 
 import matplotlib.pyplot as plt
 
+from scipy.spatial import cKDTree
+
 from scipy.spatial.transform import Rotation as R
 
 from scipy.interpolate import griddata
@@ -31,6 +33,13 @@ from scipy.interpolate import griddata
 SUPPORTED_TRANSFORM_MODES = (
     "production_current",
     "exact_lidar_parent_child_inverted",
+)
+
+SUPPORTED_INTERPOLATION_METHODS = (
+    "local_idw",
+    "nearest",
+    "linear",
+    "cubic",
 )
 
 # --- 1. SENSOR CALIBRATION MATH ---
@@ -439,6 +448,62 @@ def dense_map_diagnostics(
     }
 
 
+def local_idw_interpolate(
+    sparse_depth_map,
+    candidate_mask,
+    k=4,
+    power=2.0,
+    max_depth_spread_m=1.25,
+    max_relative_depth_spread=0.35,
+):
+    valid_mask = sparse_depth_map > 0
+    dense_depth_map = np.zeros_like(sparse_depth_map, dtype=np.float32)
+    dense_depth_map[valid_mask] = sparse_depth_map[valid_mask]
+
+    coords = np.array(np.nonzero(valid_mask)).T.astype(np.float32)
+    values = sparse_depth_map[valid_mask].astype(np.float32)
+    if values.size == 0:
+        return dense_depth_map
+
+    fill_mask = candidate_mask & (~valid_mask)
+    fill_coords = np.array(np.nonzero(fill_mask)).T.astype(np.float32)
+    if fill_coords.size == 0:
+        return dense_depth_map
+
+    query_k = min(max(int(k), 1), values.size)
+    tree = cKDTree(coords)
+    distances, indices = tree.query(fill_coords, k=query_k)
+
+    if query_k == 1:
+        distances = distances[:, None]
+        indices = indices[:, None]
+
+    neighbor_depths = values[indices]
+    depth_min = np.min(neighbor_depths, axis=1)
+    depth_max = np.max(neighbor_depths, axis=1)
+    depth_median = np.median(neighbor_depths, axis=1)
+    depth_spread = depth_max - depth_min
+    relative_spread = depth_spread / np.maximum(depth_median, 1e-6)
+
+    consistent = (depth_spread <= max_depth_spread_m) | (
+        relative_spread <= max_relative_depth_spread
+    )
+    if not np.any(consistent):
+        return dense_depth_map
+
+    safe_distances = np.maximum(distances[consistent], 1e-3)
+    weights = 1.0 / np.power(safe_distances, power)
+    weighted_depths = np.sum(weights * neighbor_depths[consistent], axis=1) / np.sum(
+        weights, axis=1
+    )
+
+    accepted_coords = fill_coords[consistent].astype(np.int32)
+    dense_depth_map[accepted_coords[:, 0], accepted_coords[:, 1]] = weighted_depths.astype(
+        np.float32
+    )
+    return dense_depth_map
+
+
 def build_metrics_row(
     rgb_file,
     lidar_file,
@@ -648,13 +713,17 @@ def project_and_densify(
     rvec,
     tvec,
     img_shape=(720, 1280),
-    interpolation_method="linear",
+    interpolation_method="local_idw",
     distance_mask_px=25,
     enable_sparse_morph=False,
     sparse_morph_kernel=3,
     sparse_morph_iters=1,
     max_interp_depth_m=None,
     clamp_only_interpolated=True,
+    local_idw_k=4,
+    local_idw_power=2.0,
+    local_idw_max_depth_spread_m=1.25,
+    local_idw_max_relative_depth_spread=0.35,
     verbose=True,
     return_extras=False,
 ):
@@ -730,32 +799,6 @@ def project_and_densify(
 
         print(f"Sparse fill ratio: {sparse_fill_ratio * 100:.4f}%")
 
-    grid_y, grid_x = np.mgrid[0 : img_shape[0], 0 : img_shape[1]]
-
-    print("      Interpolating sparse points (this takes a second)...")
-    dense_depth_map = griddata(
-        coords, values, (grid_y, grid_x), method=interpolation_method
-    )
-
-    nan_mask = np.isnan(dense_depth_map)
-    if np.any(nan_mask):
-        nearest_fill = griddata(coords, values, (grid_y, grid_x), method="nearest")
-        dense_depth_map[nan_mask] = nearest_fill[nan_mask]
-
-    if max_interp_depth_m is not None:
-
-        if clamp_only_interpolated:
-
-            clamp_mask = (dense_depth_map > max_interp_depth_m) & (~measured_mask)
-
-        else:
-
-            clamp_mask = dense_depth_map > max_interp_depth_m
-
-        dense_depth_map[clamp_mask] = 0
-
-    # --- THE FIX: DISTANCE TRANSFORM MASK ---
-
     support_mask = measured_mask.astype(np.uint8)
 
     if enable_sparse_morph and sparse_morph_kernel > 1 and sparse_morph_iters > 0:
@@ -772,9 +815,43 @@ def project_and_densify(
     # 2. Calculate the pixel distance from every empty spot to the nearest real laser dot
     dist_to_laser = cv2.distanceTransform(binary_empty, cv2.DIST_L2, 3)
 
-    # 3. Chop off the hallucinations: If an interpolated pixel is more than 25 pixels
-    # away from a physical laser hit, delete it (set it to 0).
-    # This securely bridges the scanlines but perfectly preserves the sky and background.
+    candidate_mask = dist_to_laser <= distance_mask_px
+
+    print("      Interpolating sparse points (this takes a second)...")
+    if interpolation_method == "local_idw":
+        dense_depth_map = local_idw_interpolate(
+            sparse_depth_map,
+            candidate_mask,
+            k=local_idw_k,
+            power=local_idw_power,
+            max_depth_spread_m=local_idw_max_depth_spread_m,
+            max_relative_depth_spread=local_idw_max_relative_depth_spread,
+        )
+    else:
+        grid_y, grid_x = np.mgrid[0 : img_shape[0], 0 : img_shape[1]]
+        dense_depth_map = griddata(
+            coords, values, (grid_y, grid_x), method=interpolation_method
+        )
+
+        nan_mask = np.isnan(dense_depth_map)
+        if np.any(nan_mask):
+            nearest_fill = griddata(coords, values, (grid_y, grid_x), method="nearest")
+            dense_depth_map[nan_mask] = nearest_fill[nan_mask]
+
+    if max_interp_depth_m is not None:
+
+        if clamp_only_interpolated:
+
+            clamp_mask = (dense_depth_map > max_interp_depth_m) & (~measured_mask)
+
+        else:
+
+            clamp_mask = dense_depth_map > max_interp_depth_m
+
+        dense_depth_map[clamp_mask] = 0
+
+    # 3. Chop off the hallucinations: If an interpolated pixel is more than the
+    # allowed distance from sparse LiDAR support, delete it (set it to 0).
     dense_depth_map[dist_to_laser > distance_mask_px] = 0
 
     dense_depth_map = dense_depth_map.astype(np.float32)
@@ -825,7 +902,7 @@ REQUIRE_SAME_SESSION = True
 
 FALLBACK_TO_ANY_SESSION = True
 
-INTERPOLATION_METHOD = "linear"
+INTERPOLATION_METHOD = "local_idw"
 
 DISTANCE_MASK_PX = 25
 
@@ -847,7 +924,7 @@ RUN_PARAMETER_SWEEP = False
 
 SWEEP_DISTANCE_MASK_PX = [18, 25, 35]
 
-SWEEP_INTERPOLATION_METHODS = ["linear"]
+SWEEP_INTERPOLATION_METHODS = ["local_idw", "linear"]
 
 SWEEP_MAX_INTERP_DEPTH_M = [20.0, 28.0, None]
 

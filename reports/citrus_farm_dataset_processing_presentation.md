@@ -1,279 +1,267 @@
 # Citrus Farm Dataset Processing Presentation Guide
 
-Purpose: slide guide and speaking script for the part after raw dataset download/extraction. It is written for beginner-friendly explanation, so use the plain wording first and technical terms second.
+Purpose: a 4-slide guide for your part of the group presentation. Your teammates can explain the dataset source, download, and extraction. Your part starts after that: checking whether RGB and LiDAR line up, explaining how LiDAR labels are made, and showing the current route decision.
 
-## What This Presentation Covers
+Use simple wording first. Add the technical word only after the simple idea is clear.
 
-Your teammates can cover:
+## Overall Message
 
-1. Dataset source
-2. Downloading ROS bags
-3. Extracting RGB, ZED depth, and LiDAR files
+> We already have a working pipeline that can create LiDAR-based depth labels, masks, visuals, and metrics. But the final dataset is not locked yet because label quality is a research decision. We prefer trustworthy labels with holes over fake dense labels.
 
-Your part can cover:
+## Useful Simple Terms
 
-1. Making LiDAR and camera line up
-2. Comparing two possible line-up formulas
-3. Creating LiDAR-densified depth labels
-4. Explaining interpolation honestly
-5. Showing the small dataset-build/metrics probe
-6. Asking professor which label policy is better before final build
-
-Short version:
-
-> We are not finished with the final dataset yet. We have a working pipeline and early quality checks, but we still need to choose the better label-generation route and validate it on more time-spread samples.
-
-## Plain-Language Glossary
-
-| Technical word | Plain explanation |
+| Technical word | Simple explanation |
 |---|---|
-| Calibration | Making LiDAR and camera line up |
-| Transform | The formula for putting LiDAR points onto the camera image |
-| Projection | Drawing 3D LiDAR points on the 2D RGB image |
-| Sparse LiDAR | LiDAR only hits some pixels, like thin scanlines |
-| Densification | Turning sparse LiDAR into a more image-like depth label |
-| Interpolation | Filling nearby missing pixels by guessing from measured LiDAR points |
-| Valid mask | A map of pixels we trust |
-| ZED depth | A second depth source used as a sanity check |
-| Dense label | The depth label after filling nearby missing pixels |
-
-Suggested speaking rule:
-
-> Explain the plain meaning first, then mention the technical term.
-
-Example:
-
-> First we check whether the LiDAR and camera line up. Technically, this is a calibration or transform check.
+| Calibration | Making the camera and LiDAR line up |
+| Projection | Drawing LiDAR points on top of the RGB image |
+| Transform | The formula used to move LiDAR points into the camera view |
+| Sparse LiDAR | LiDAR only gives depth on some scanlines, not every pixel |
+| Interpolation | Filling nearby missing pixels using measured LiDAR points |
+| Valid mask | A map saying which label pixels we trust |
+| Dense model output | The final model's full-image depth prediction |
 
 ## Slide 1 - Where My Part Starts
 
-Title:
+Slide title:
 
 `After Extraction: Can We Trust The Depth Labels?`
 
-Show:
+Put on the slide:
 
 ```text
-RGB images + LiDAR scans
-        ↓
-Line-up check
-        ↓
-Sparse-to-dense depth labels
-        ↓
-Valid masks + metrics
-        ↓
-Ready candidate dataset, not final yet
+Raw extracted files:
+RGB images + LiDAR scans + ZED depth
+
+My part:
+1. Check if LiDAR and camera line up
+2. Turn sparse LiDAR into usable depth labels
+3. Compare two possible label routes
+4. Decide what still needs validation
 ```
 
-Say:
+Add this short status box:
 
-> My teammates explained how we get RGB images and LiDAR scans from the Citrus Farm dataset. My part starts after extraction. We need to check whether these sensors line up and whether the depth labels we generate are trustworthy enough for evaluation or training.
+```text
+Pipeline works: yes
+Final dataset locked: not yet
+Reason: label quality still needs validation
+```
 
-## Slide 2 - Why The Line-Up Check Is Needed
+Suggested visual:
 
-Show:
-
-Use a matching overlay image from:
+Use one RGB image or one overlay image from:
 
 `datasets/citrus-farm-dataset/projection_alignment_audit/overlays/`
 
-Say:
+Speaker notes:
 
-> The camera image is flat, but LiDAR is 3D. So we need a formula that places LiDAR points onto the RGB image. If the formula is good, the LiDAR scanlines should land on visible objects like plants, tree trunks, and road. If it is bad, the scanlines may look like strange vertical bands or miss the scene.
+> My teammates covered how we get the raw data. My part starts after extraction. At this stage, having RGB and LiDAR files is not enough yet. We need to check whether the LiDAR points line up with the camera image, because if the sensors do not line up, the depth labels will be wrong even if the files are downloaded correctly.
+>
+> So the main question for my part is simple: can we trust the labels we are creating from LiDAR?
 
-Simple analogy:
+Key sentence to remember:
 
-> It is like putting a transparent LiDAR stencil over the camera image. We need the stencil to match the real scene.
+> Correct extraction gives us files. Correct alignment gives us useful labels.
 
-## Slide 3 - Two Candidate Routes
+## Slide 2 - Camera and LiDAR Line-Up Check
 
-Title:
+Slide title:
 
-`Two Possible Line-Up Formulas`
+`Step 1: Make The LiDAR Points Land On The RGB Image`
 
-Show:
+Put on the slide:
 
-Same overlay image. Point only to the two serious candidates:
+```text
+Problem:
+The camera sees a 2D image.
+LiDAR measures 3D points.
 
-1. `production_current`
-2. `exact_lidar_parent_child_inverted`
+So we need a formula that places LiDAR points onto the image.
 
-Say:
+If the formula is good:
+LiDAR scanlines land on plants, trunks, ground, and road.
 
-> We tested several formula interpretations. Two were clearly wrong. These two are the serious candidates. Visually, both are plausible. The main difference is that the exact inverted route looks a little tighter or narrower.
+If the formula is bad:
+LiDAR points become strange bands or miss the scene.
+```
 
-Use simple names during presentation:
+Add route names:
 
 ```text
 Route A = production_current
 Route B = exact_lidar_parent_child_inverted
 ```
 
-## Slide 4 - Why LiDAR Is Not Already A Full Depth Image
+Suggested visual:
 
-Show:
+Use one overlay panel from:
 
-Use a detail image from either route and point to the sparse LiDAR panel.
+`datasets/citrus-farm-dataset/projection_alignment_audit/overlays/`
 
-Say:
+Point only to Route A and Route B. Do not spend time on the clearly wrong routes unless asked.
 
-> LiDAR does not give depth for every camera pixel. It only gives sparse scanlines. So if we directly use raw LiDAR, most pixels have no depth label.
+Speaker notes:
 
-Then:
+> The camera image is flat, but LiDAR points are 3D. So we need a transform, or in simpler words, a line-up formula. This formula tells us where each LiDAR point should appear in the RGB image.
+>
+> We tested several formula interpretations. Two of them were clearly wrong because the points did not land naturally on the scene. Two looked plausible, so we call them Route A and Route B.
+>
+> For now, both Route A and Route B are serious candidates. Route B often looks a bit tighter on the plant structure, and the numbers also make it worth keeping.
 
-> To create a more useful label, we fill nearby missing pixels. This is called interpolation. It is useful, but it is still a guess based on nearby measured points.
+Simple analogy:
 
-Important sentence:
+> It is like placing a transparent LiDAR stencil on top of the camera image. If the stencil does not match, the labels cannot be trusted.
 
-> Because of interpolation, we should call these LiDAR-densified depth labels, not perfect ground truth.
+## Slide 3 - From Sparse LiDAR To Trustworthy Labels
 
-## Slide 5 - What Interpolation Means
+Slide title:
 
-Show:
+`Step 2: LiDAR Is Sparse, So We Create Semi-Dense Labels`
 
-Simple drawing or explain verbally:
+Put on the slide:
 
 ```text
-LiDAR measured here      missing pixels      LiDAR measured here
-        ↓                     ↓                    ↓
-      3.0 m        guessed from neighbors        3.4 m
+Sparse LiDAR:
+Direct sensor measurements, but only on scanlines.
+
+Interpolation:
+Fills nearby missing pixels using nearby LiDAR measurements.
+
+Current safer rule:
+Fill only when nearby LiDAR depths agree.
+Leave holes when the evidence is uncertain.
+
+Why holes are okay:
+Holes mean "do not trust this pixel."
+The valid mask tells training/evaluation which pixels to use.
 ```
 
-Say:
+Suggested visual:
 
-> Interpolation means filling the missing pixels between nearby LiDAR hits. If two nearby LiDAR points are around 3 meters away, the script estimates nearby pixels using those values.
-
-Then add the limitation:
-
-> This is not the best possible method. It is an initial working method. It gives us a usable starting point, but for paper quality we need valid masks, sanity checks, and maybe better label-generation settings later.
-
-Very digestible version:
-
-> Measured LiDAR pixels are more trustworthy. Interpolated pixels are useful but less trustworthy. Pixels too far from LiDAR support should not be trusted.
-
-## Slide 6 - Dense Label Route A
-
-Show:
-
-Use the matching sample from:
-
-`datasets/citrus-farm-dataset/projection_alignment_audit/details_production_current/`
-
-Say:
-
-> This is Route A after sparse LiDAR is turned into a denser label. It covers more area, but some of that area may come from interpolation.
-
-Point to:
-
-- `LiDAR label visual`: the human-friendly depth-label picture
-- `Valid label mask`: the trusted pixels
-- `Support distance, not depth`: not a label; just shows distance from real LiDAR support
-
-## Slide 7 - Dense Label Route B
-
-Show:
-
-Use the same sample number from:
+Use one detail panel from:
 
 `datasets/citrus-farm-dataset/projection_alignment_audit/details_exact_lidar_parent_child_inverted/`
 
-Say:
-
-> This is Route B. It tends to cover less area, but our early numbers suggest it may be cleaner where it does create labels.
-
-Point out:
-
-> Less coverage is not automatically worse. If the extra coverage comes from uncertain interpolation, cleaner but smaller labels may be better.
-
-## Slide 8 - Small Dataset-Build Probe
-
-Title:
-
-`Early Metrics: More Coverage vs Cleaner Labels`
-
-Show:
-
-| Metric | Route A | Route B |
-|---|---:|---:|
-| Dense fill ratio | 54.12% | 43.91% |
-| ZED/LiDAR overlap | 35.59% | 29.76% |
-| ZED-vs-LiDAR difference | 0.632 m | 0.206 m |
-| Relative difference | 37.92% | 8.49% |
-
-Say:
-
-> Route A gives labels to more pixels. Route B gives labels to fewer pixels, but where we can compare it with ZED depth, it is much closer.
-
-Plain conclusion:
-
-> Route A gives more labels. Route B may give cleaner labels.
-
-Caution:
-
-> This was only a 50-frame probe from the beginning of the sequence. It is useful evidence, but not enough to lock the final dataset.
-
-## Slide 9 - Is The Dataset Built And Done?
-
-Answer:
-
-> Not yet.
-
-Explain:
-
-> The script can build dataset artifacts: dense labels, valid masks, splits, and metrics. But before the final build, we need to decide which route to use and validate it on time-spread samples, not only the first 50 frames.
-
-Use this status:
+If you crop the panel for the slide, show these three parts:
 
 ```text
-Pipeline works: yes
-Final dataset locked: no
-Best route chosen: not yet
-Next dataset task: time-spread validation probe
+Sparse LiDAR depth
+LiDAR label visual
+Valid label mask
 ```
 
-## Slide 10 - Question For Professor
+Speaker notes:
 
-Ask:
+> Raw LiDAR is the most direct measurement, but it is sparse. It does not give depth for every camera pixel. That is why the sparse LiDAR image looks like colored scanlines.
+>
+> At first, it feels natural to fill all the gaps, but in vegetation this can be dangerous. Leaves, gaps, trunks, and road can be very close in the image but very different in real depth. If interpolation connects them too aggressively, it creates fake surfaces.
+>
+> So now we use a safer interpolation method. It only fills near real LiDAR support, and it refuses to fill if nearby LiDAR depths disagree too much. This creates more holes, but those holes are honest. They mean we do not have enough evidence for that pixel.
+>
+> For evaluation or supervised training, we should use the valid mask. The model is judged only where the label is trusted.
 
-> For this paper, should our labels prioritize cleaner but less dense depth, or broader depth labels with more interpolation?
+Important distinction:
 
-Follow-up questions:
+```text
+Label image: may have holes, because it is measured evidence.
+Model prediction: should be a full depth image.
+```
 
-1. Should LiDAR-densified labels be used only for evaluation, or also for supervised/hybrid training?
-2. Is the term "LiDAR-densified pseudo-ground truth with valid masks" acceptable?
-3. Should ZED depth remain only a sanity check, or become an auxiliary comparison in the paper?
-4. Should dataset finalization be the next milestone before model architecture improvements?
+Key sentence to remember:
+
+> We prefer missing labels over fake labels.
+
+## Slide 4 - Current Result And Next Decision
+
+Slide title:
+
+`Current Result: Route B Looks Cleaner, But Final Dataset Is Not Locked`
+
+Put on the slide:
+
+```text
+12-sample local_idw audit
+
+Use the screenshot table from:
+reports/slide4_route_comparison_table.html
+```
+
+Add this final decision box:
+
+```text
+Current direction:
+Keep Route B as a serious candidate.
+
+Next dataset step:
+Run a more time-spread validation probe before full dataset build.
+```
+
+Suggested visual:
+
+Use only the metrics table on this slide. Keep the Route A and Route B detail images ready for questions, because Slide 3 already shows the visual examples.
+
+Simple metric explanations to say:
+
+```text
+Labeled coverage:
+How much of the image gets a trusted LiDAR label.
+Higher means more usable label pixels.
+
+Comparison area:
+Where both our LiDAR label and ZED depth exist.
+This is the area where the checking is possible.
+
+ZED difference:
+How far our LiDAR label is from ZED depth.
+Lower means the label agrees better with ZED.
+
+Relative difference:
+The same difference, but adjusted for distance.
+Lower means cleaner agreement.
+```
+
+Speaker notes:
+
+> After changing to the safer interpolation, the labels became less dense, but that is expected. It means the method is refusing uncertain pixels.
+>
+> In the current 12-sample audit, Route A covers more pixels. Route B covers fewer pixels, but where we can compare with ZED depth, Route B has much lower difference.
+>
+> This does not mean the dataset is final. It means we have a better direction. Before building the full dataset, we should validate on more samples spread across time, not only a small set.
+
+Simple conclusion:
+
+> Route A gives more coverage. Route B looks cleaner. The next step is to validate this trend before locking the final dataset.
 
 ## 2-Minute Speaking Script
 
-My teammates covered the dataset download and extraction. My part starts after that, when we have RGB images and LiDAR scans.
+My part starts after the dataset has already been downloaded and extracted. At that point, we have RGB images, LiDAR scans, and ZED depth files. But raw files alone are not enough. We need to check whether the labels we create from LiDAR are trustworthy.
 
-The first question is whether the LiDAR and camera line up. The camera image is 2D, while LiDAR is 3D, so we need a formula that draws LiDAR points onto the RGB image. If the formula is good, the LiDAR scanlines should land on plants, trunks, and road areas. If the formula is bad, the points can look like strange vertical lines or miss the scene.
+First, we check whether the camera and LiDAR line up. The camera sees a 2D image, while LiDAR measures 3D points. So we need a formula that places LiDAR points onto the RGB image. If the formula is good, the LiDAR scanlines should land on visible objects like plants, trunks, road, and ground. If it is bad, the points can miss the scene or become strange bands.
 
-We tested several possible formulas. Two were clearly wrong. Two are plausible, so we call them Route A and Route B. Route A is the current production route. Route B is the exact inverted route.
+We tested several possible line-up formulas. Two were clearly wrong. Two are plausible, so we call them Route A and Route B. Route A is `production_current`, and Route B is `exact_lidar_parent_child_inverted`.
 
-After choosing a route, we create depth labels. But raw LiDAR is sparse. It only gives scanlines, not a full depth image. So the script fills nearby missing pixels using interpolation. Interpolation means guessing missing values from nearby measured LiDAR points. This is useful, but not perfect, so we should call the result LiDAR-densified depth labels, not perfect ground truth.
+After that, we create labels. Raw LiDAR is sparse, meaning it only gives depth on scanlines, not every pixel. To make it more useful, we fill nearby missing pixels. This is interpolation. But in vegetation, aggressive interpolation is risky because leaves, gaps, trunks, and road can be mixed together. So we changed to a safer method that only fills when nearby LiDAR measurements agree. If the evidence is uncertain, we leave a hole and mark that pixel as invalid.
 
-We generated visuals for both routes. Route A covers more pixels. Route B covers fewer pixels. Then we ran a small 50-frame dataset-build probe. Route A filled around 54 percent of the image, while Route B filled around 44 percent. But where we can compare with ZED depth, Route B had much lower error: around 0.21 meters instead of 0.63 meters.
+This is important: the label does not need to be a complete image. The label needs to be trustworthy where it exists. The final depth model will still output a full depth image from RGB, but training and evaluation should only use trusted label pixels.
 
-So the current tradeoff is clear: Route A gives more coverage, Route B may give cleaner labels. We are not saying the final dataset is done yet. Our proposed next dataset step is a time-spread validation probe, then we can lock the label route and build the final dataset.
+In the current 12-sample audit, Route A gives more coverage, around 43.31 percent. Route B gives less coverage, around 36.56 percent, but it agrees better with ZED depth. Route B's ZED difference is around 0.194 meters, compared to 0.570 meters for Route A.
+
+So our current conclusion is: Route A gives more labeled pixels, but Route B may be cleaner. We should not lock the final dataset yet. The next step is a more time-spread validation probe before building the full dataset.
 
 ## 30-Second Version
 
-After extraction, we checked whether LiDAR and camera line up by drawing LiDAR points on RGB images. Two line-up formulas are plausible. Then we created LiDAR-densified labels for both routes. Because LiDAR is sparse, the script fills nearby missing pixels, so these labels are useful but not perfect ground truth. Route A gives more labeled pixels, while Route B agrees better with ZED depth where they overlap. We want professor feedback on whether to prioritize broader coverage or cleaner labels before the final dataset build.
+My part checks whether the extracted RGB and LiDAR data can produce trustworthy depth labels. First, we verify that LiDAR points line up with the camera image. Then we convert sparse LiDAR scanlines into semi-dense labels, but we avoid filling uncertain vegetation gaps too aggressively. The current safer method creates more holes, but those holes mean the pixel is not trusted. In the current audit, Route A gives more coverage, while Route B agrees better with ZED depth. So Route B is a serious candidate, but we still need a time-spread validation probe before the final dataset build.
 
-## What To Put On Slides
+## What To Keep Ready For Questions
 
-Minimum visual set:
+Keep these ready, but do not put all of them into the main slides:
 
-1. One overlay image from `overlays/`
-2. Same sample from `details_production_current/`
-3. Same sample from `details_exact_lidar_parent_child_inverted/`
-4. One small metrics table
-5. One "next decision" slide
+1. Extra overlay panels from `projection_alignment_audit/overlays/`
+2. Extra Route A panels from `projection_alignment_audit/details_production_current/`
+3. Extra Route B panels from `projection_alignment_audit/details_exact_lidar_parent_child_inverted/`
+4. The audit summary file: `projection_alignment_audit/audit_summary.json`
+5. The audit metrics file: `projection_alignment_audit/audit_metrics.csv`
 
-Do not overload the slides with all 12 samples. Keep the extra samples ready only if professor asks.
+## Main Takeaway
 
-## Key Message
-
-> The dataset pipeline can now create labels, masks, visuals, and metrics, but interpolation makes label quality a research decision. We should choose the label route carefully before final dataset generation.
+> The pipeline can create LiDAR-based labels, but label quality matters more than making the label look full. A depth model should output a full image, but our labels should only mark pixels we actually trust.

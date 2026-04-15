@@ -331,6 +331,12 @@ def process_single_sample(args_tuple) -> Optional[Dict[str, object]]:
             sparse_morph_iters=params["sparse_morph_iters"],
             max_interp_depth_m=params["max_interp_depth_m"],
             clamp_only_interpolated=params["clamp_only_interpolated"],
+            local_idw_k=params["local_idw_k"],
+            local_idw_power=params["local_idw_power"],
+            local_idw_max_depth_spread_m=params["local_idw_max_depth_spread_m"],
+            local_idw_max_relative_depth_spread=params[
+                "local_idw_max_relative_depth_spread"
+            ],
             verbose=False,
             return_extras=True,
         )
@@ -420,8 +426,17 @@ def main() -> None:
         action="store_false",
         help="Disable cross-session fallback when same-session is required.",
     )
-    parser.add_argument("--interpolation_method", default="linear", choices=["nearest", "linear", "cubic"])
+    parser.add_argument(
+        "--interpolation_method",
+        default="local_idw",
+        choices=dld.SUPPORTED_INTERPOLATION_METHODS,
+        help="Sparse-to-dense fill method. local_idw is safer for vegetation because it refuses large local depth jumps.",
+    )
     parser.add_argument("--distance_mask_px", type=int, default=25)
+    parser.add_argument("--local_idw_k", type=int, default=4)
+    parser.add_argument("--local_idw_power", type=float, default=2.0)
+    parser.add_argument("--local_idw_max_depth_spread_m", type=float, default=1.25)
+    parser.add_argument("--local_idw_max_relative_depth_spread", type=float, default=0.35)
     parser.add_argument("--enable_sparse_morph", action="store_true", default=True)
     parser.add_argument("--sparse_morph_kernel", type=int, default=3)
     parser.add_argument("--sparse_morph_iters", type=int, default=1)
@@ -516,6 +531,10 @@ def main() -> None:
         "transform_mode": args.transform_mode,
         "interpolation_method": args.interpolation_method,
         "distance_mask_px": args.distance_mask_px,
+        "local_idw_k": args.local_idw_k,
+        "local_idw_power": args.local_idw_power,
+        "local_idw_max_depth_spread_m": args.local_idw_max_depth_spread_m,
+        "local_idw_max_relative_depth_spread": args.local_idw_max_relative_depth_spread,
         "enable_sparse_morph": args.enable_sparse_morph,
         "sparse_morph_kernel": args.sparse_morph_kernel,
         "sparse_morph_iters": args.sparse_morph_iters,
