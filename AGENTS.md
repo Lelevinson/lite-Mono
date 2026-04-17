@@ -131,10 +131,11 @@ Manual projection-audit observation (2026-04-15):
 1. `production_current` and `exact_lidar_parent_child_inverted` both visually align well with vegetation/scene structure in the generated 3-sample audit.
 2. `current_chain_no_invert` and `exact_lidar_parent_child_direct` look clearly wrong; projected points form near-vertical bands and do not land on plants/scene structure.
 3. User observed little difference between the two plausible candidates, except `exact_lidar_parent_child_inverted` has slightly narrower purple scanline spacing than `production_current`.
-4. Decision for now: keep `production_current` as the active/default densify_lidar transform, but make `exact_lidar_parent_child_inverted` runnable as an alternate comparison dataset because it may concentrate projected LiDAR more tightly on plant structures.
+4. Historical decision at that point: keep `production_current` as the active/default densify_lidar transform, but make `exact_lidar_parent_child_inverted` runnable as an alternate comparison dataset because it may concentrate projected LiDAR more tightly on plant structures.
 5. The old mixed projection-audit output folder was removed and a clean 12-sample projection audit was regenerated under `projection_alignment_audit/`.
 6. User inspected the clean 12-sample audit and judged `production_current` versus `exact_lidar_parent_child_inverted` as mostly tied; the main visible difference remains narrower purple projected scanline spacing in `exact_lidar_parent_child_inverted`.
-7. Because the larger visual audit is a tie, keep `production_current` as the default label-generation transform unless later quantitative checks against ZED depth or model-evaluation behavior show a clear advantage for the alternate transform.
+7. Historical interpretation at that point: because the larger visual audit was a tie, keep `production_current` as the default label-generation transform unless later quantitative checks against ZED depth or model-evaluation behavior showed a clear advantage for the alternate transform.
+8. Superseded on 2026-04-17 by the final route decision: `exact_lidar_parent_child_inverted` is now the default/final label route.
 
 Legacy linear metrics probe result (2026-04-15):
 
@@ -185,15 +186,64 @@ Legacy linear metrics probe result (2026-04-15):
    - ZED-vs-LiDAR relative difference: 0.074806
 5. Current interpretation: `local_idw` intentionally creates more holes than linear interpolation because it refuses uncertain fills. This is preferable to fake dense vegetation surfaces for evaluation/training labels.
 
+## Time-spread local_idw metrics probe (2026-04-16)
+
+1. Added `--metrics_only` to `audit_projection_alignment.py` so larger route-comparison probes can write CSV/JSON metrics without generating hundreds of overlay/detail PNG panels.
+2. Hardened sparse and dense projection loops to skip non-finite projected points instead of crashing when a candidate transform produces infinite pixel coordinates.
+3. Ran a 200-sample time-spread metrics-only probe:
+   - `D:/Conda_Envs/lite-mono/python.exe datasets/citrus-farm-dataset/audit_projection_alignment.py --max_samples 200 --metrics_only --output_dir projection_alignment_audit/time_spread_metrics_200`
+4. Probe scope:
+   - 200 samples selected across 5282 matched RGB-LiDAR pairs
+   - first sampled RGB: `zed_2023-07-18-14-26-49_0_bag_1689715609331936216.png`
+   - last sampled RGB: `zed_2023-07-18-14-35-27_18_bag_1689716137437974008.png`
+   - median RGB-LiDAR delta: 27.873 ms
+   - median RGB-ZED-depth delta: 12.710 ms
+5. `production_current` 200-sample median results:
+   - dense fill ratio: 0.424624
+   - ZED/LiDAR overlap ratio: 0.231256
+   - ZED-vs-LiDAR absolute difference: 0.538049 m
+   - ZED-vs-LiDAR relative difference: 0.221197
+   - valid projected ratio: 0.328247
+6. `exact_lidar_parent_child_inverted` 200-sample median results:
+   - dense fill ratio: 0.366310
+   - ZED/LiDAR overlap ratio: 0.212465
+   - ZED-vs-LiDAR absolute difference: 0.191620 m
+   - ZED-vs-LiDAR relative difference: 0.069013
+   - valid projected ratio: 0.329068
+7. Pairwise result across all 200 samples:
+   - `production_current` had higher dense fill on 198/200 samples.
+   - `exact_lidar_parent_child_inverted` had lower ZED absolute error on 200/200 samples.
+   - `exact_lidar_parent_child_inverted` had lower ZED relative error on 200/200 samples.
+8. Interpretation: the time-spread probe strongly supports `exact_lidar_parent_child_inverted` as the cleaner label route despite lower dense coverage.
+
+## Final label route decision (2026-04-17)
+
+1. Ran a final 12-sample time-spread visual spot-check:
+   - `D:/Conda_Envs/lite-mono/python.exe datasets/citrus-farm-dataset/audit_projection_alignment.py --max_samples 12 --output_dir projection_alignment_audit/time_spread_visual_12`
+2. Visual outputs are local ignored diagnostics:
+   - `datasets/citrus-farm-dataset/projection_alignment_audit/time_spread_visual_12/overlays/`
+   - `datasets/citrus-farm-dataset/projection_alignment_audit/time_spread_visual_12/details_production_current/`
+   - `datasets/citrus-farm-dataset/projection_alignment_audit/time_spread_visual_12/details_exact_lidar_parent_child_inverted/`
+3. Visual spot-check result:
+   - `exact_lidar_parent_child_inverted` remains visually plausible across time-spread samples.
+   - the two rejected direct/no-invert candidates remain visibly wrong.
+4. Final/default dense-label transform is now `exact_lidar_parent_child_inverted`.
+5. `production_current` remains available as an alternate comparison route via `--transform_mode production_current`.
+6. One-sample smoke build verified that build_training_dataset.py now uses `exact_lidar_parent_child_inverted` by default; the throwaway output folder was removed after validation.
+7. Full prepared dataset build has not been run in this cleanup commit because it is a large local artifact step. Next build command:
+   - `D:/Conda_Envs/lite-mono/python.exe build_training_dataset.py`
+8. Research note:
+   - `research/dataset_audit/final_label_route_decision.md`
+
 ## Original Lite-Mono Citrus Sanity Run (2026-04-16)
 
 1. Ran original pretrained `weights/lite-mono` on one copied Citrus RGB image using `test_simple.py`.
 2. Keep Lite-Mono demo outputs out of extracted dataset folders. The RGB image should be copied to an ignored demo/output folder before running `test_simple.py`, because `test_simple.py` writes `*_disp.jpeg` and `*_disp.npy` next to the input image.
 3. Command used:
-   - `D:/Conda_Envs/lite-mono/python.exe test_simple.py --load_weights_folder weights/lite-mono --image_path reports/generated/lite_mono_single_image_demo/zed_2023-07-18-14-26-49_0_bag_1689715609331936216.png --model lite-mono --no_cuda`
-4. Output files were generated under ignored `reports/generated/lite_mono_single_image_demo/`, not under the dataset folder:
-   - `reports/generated/lite_mono_single_image_demo/zed_2023-07-18-14-26-49_0_bag_1689715609331936216_disp.jpeg`
-   - `reports/generated/lite_mono_single_image_demo/zed_2023-07-18-14-26-49_0_bag_1689715609331936216_disp.npy`
+   - `D:/Conda_Envs/lite-mono/python.exe test_simple.py --load_weights_folder weights/lite-mono --image_path research/generated/lite_mono_single_image_demo/zed_2023-07-18-14-26-49_0_bag_1689715609331936216.png --model lite-mono --no_cuda`
+4. Output files were generated under ignored `research/generated/lite_mono_single_image_demo/`, not under the dataset folder:
+   - `research/generated/lite_mono_single_image_demo/zed_2023-07-18-14-26-49_0_bag_1689715609331936216_disp.jpeg`
+   - `research/generated/lite_mono_single_image_demo/zed_2023-07-18-14-26-49_0_bag_1689715609331936216_disp.npy`
 5. Interpretation: this is a qualitative baseline sanity/demo run only. It starts the Citrus baseline milestone but does not complete it, because Milestone 1 still requires validation/test-set evaluation against LiDAR-densified labels, masks, runtime/size reporting, and failure-case analysis.
 
 ## Current Local Data Snapshot (2026-04-01)
@@ -258,23 +308,31 @@ Depth-label storage versus visualization:
 
 Alternate transform comparison:
 
-1. Running build_training_dataset.py with `--transform_mode exact_lidar_parent_child_inverted` and no explicit `--output_dir` writes to `prepared_training_dataset_exact_lidar_parent_child_inverted/`.
-2. Metrics and summary files include `transform_mode` so production-current and alternate-transform dense labels can be compared without relying only on folder names.
+1. `exact_lidar_parent_child_inverted` is now the default/final transform and writes to `prepared_training_dataset/` when no explicit `--output_dir` is provided.
+2. Running build_training_dataset.py with `--transform_mode production_current` and no explicit `--output_dir` writes to `prepared_training_dataset_production_current/`.
+3. Metrics and summary files include `transform_mode` so final and alternate-transform dense labels can be compared without relying only on folder names.
 
-## Research Communication Artifacts
+## Research Artifacts And Communication Notes
 
-Prepared for progress reporting and professor decision alignment:
+Paper/research notes:
 
-1. reports/citrus_farm_dataset_processing_presentation.md
+1. research/README.md
+2. research/paper_content_candidates.md
+3. research/dataset_audit/final_label_route_decision.md
+4. research/dataset_audit/time_spread_metrics_200_summary.md
+5. research/baselines/original_lite_mono_single_image_demo.md
+
+Generated local research artifacts:
+
+1. research/generated/ (ignored by git)
 
 Current communication stance:
 
 1. The old reports/professor folder was removed because the research structure is being refreshed.
-2. Keep new progress/presentation scripts directly under reports/ unless a clearer report taxonomy is created later.
-3. The current dataset-processing presentation guide is a 5-slide version for the user's part only, with fuller slide text and simple speaker notes.
-4. Slide 4 should use a clean route-comparison metrics table because Slide 3 already shows projection/detail images.
-5. Slide 5 should connect the dataset audit to the next research stage: lock labels/splits, run original Lite-Mono on Citrus, add Citrus training/evaluation, then test a lightweight vegetation-focused improvement.
-6. Explain interpolation as a useful initial gap-filling method, not as perfect ground truth. Use "LiDAR-densified depth labels with valid masks" for paper-facing language.
+2. The reports/ presentation folder was removed after the presentation was completed.
+3. Keep paper-useful evidence, experiment summaries, and paper content candidates under research/.
+4. Keep bulky generated images/NPY artifacts under ignored research/generated/.
+5. Explain interpolation as a useful initial gap-filling method, not as perfect ground truth. Use "LiDAR-densified depth labels with valid masks" for paper-facing language.
 
 ## Core Tunables
 
@@ -287,7 +345,7 @@ Download and pairing:
 
 Densification quality:
 
-1. transform_mode (`production_current` default; `exact_lidar_parent_child_inverted` for alternate comparison)
+1. transform_mode (`exact_lidar_parent_child_inverted` default/final route; `production_current` for alternate comparison)
 2. interpolation_method (`local_idw` default; `linear`, `nearest`, and `cubic` remain available for comparison)
 3. distance_mask_px
 4. local_idw_k
@@ -444,18 +502,20 @@ Build:
 
 1. D:/Conda_Envs/lite-mono/python.exe build_training_dataset.py
 2. Optional debug run: D:/Conda_Envs/lite-mono/python.exe build_training_dataset.py --max_samples 5
-3. Alternate transform debug run: D:/Conda_Envs/lite-mono/python.exe build_training_dataset.py --transform_mode exact_lidar_parent_child_inverted --max_samples 5 --no_skip_existing
+3. Alternate production-current debug run: D:/Conda_Envs/lite-mono/python.exe build_training_dataset.py --transform_mode production_current --max_samples 5 --no_skip_existing
 
 Audit:
 
 1. D:/Conda_Envs/lite-mono/python.exe audit_projection_alignment.py --max_samples 3
 2. Inspect generated overlays/details under projection_alignment_audit/ before trusting LiDAR-densified labels.
 3. D:/Conda_Envs/lite-mono/python.exe densify_lidar.py --compare_transform_modes
+4. Time-spread metrics-only route probe: D:/Conda_Envs/lite-mono/python.exe audit_projection_alignment.py --max_samples 200 --metrics_only --output_dir projection_alignment_audit/time_spread_metrics_200
+5. Final time-spread visual spot-check: D:/Conda_Envs/lite-mono/python.exe audit_projection_alignment.py --max_samples 12 --output_dir projection_alignment_audit/time_spread_visual_12
 
 One-image original Lite-Mono Citrus sanity run:
 
-1. Copy the selected RGB image into `reports/generated/lite_mono_single_image_demo/` first, because this folder is ignored and not part of the dataset.
-2. D:/Conda_Envs/lite-mono/python.exe test_simple.py --load_weights_folder weights/lite-mono --image_path reports/generated/lite_mono_single_image_demo/zed_2023-07-18-14-26-49_0_bag_1689715609331936216.png --model lite-mono --no_cuda
+1. Copy the selected RGB image into `research/generated/lite_mono_single_image_demo/` first, because this folder is ignored and not part of the dataset.
+2. D:/Conda_Envs/lite-mono/python.exe test_simple.py --load_weights_folder weights/lite-mono --image_path research/generated/lite_mono_single_image_demo/zed_2023-07-18-14-26-49_0_bag_1689715609331936216.png --model lite-mono --no_cuda
 3. Output appears next to the copied input image as `*_disp.jpeg` and `*_disp.npy`.
 
 ## Change Log
@@ -496,7 +556,13 @@ One-image original Lite-Mono Citrus sanity run:
 - 2026-04-16: Removed the temporary Slide 4 HTML screenshot helper after use; kept the slide guide's metric explanations and table guidance.
 - 2026-04-16: Extended reports/citrus_farm_dataset_processing_presentation.md to a 5-slide guide with a closing "next stage" slide that links the dataset audit to the proposed research milestones and clarifies that milestones are proposed targets pending advisor feedback.
 - 2026-04-16: Ran one original Lite-Mono pretrained sanity prediction on an extracted Citrus RGB frame, recorded the command/output files, and clarified that this starts but does not complete the Citrus baseline milestone.
-- 2026-04-16: Removed the generated original Lite-Mono `*_disp` outputs from the extracted RGB dataset folder, reran the one-image demo from ignored `reports/generated/lite_mono_single_image_demo/`, and added `reports/generated/` to `.gitignore` so demo artifacts stay separate from dataset artifacts.
+- 2026-04-16: Removed the generated original Lite-Mono `*_disp` outputs from the extracted RGB dataset folder, reran the one-image demo from an ignored generated-artifact folder, and kept demo artifacts separate from dataset artifacts.
+- 2026-04-16: Added metrics-only projection audit support, hardened projection against non-finite projected points, and ran a 200-sample time-spread local_idw route probe; `exact_lidar_parent_child_inverted` had lower ZED absolute and relative error on all 200 paired comparisons while `production_current` kept higher dense coverage.
+- 2026-04-16: Added research/dataset_audit/time_spread_metrics_200_summary.md as a readable Markdown summary of the 200-sample metrics-only route probe, because the raw output is CSV/JSON rather than paper-friendly Markdown.
+- 2026-04-16: Tidied research artifacts by moving paper-useful notes out of reports/ into research/, adding research/paper_content_candidates.md, and moving ignored Lite-Mono demo outputs to research/generated/.
+- 2026-04-17: Ran a final 12-sample time-spread visual spot-check and locked `exact_lidar_parent_child_inverted` as the default/final dense-label transform route; `production_current` remains available as an alternate comparison route.
+- 2026-04-17: Smoke-tested build_training_dataset.py with one sample to confirm the final/default transform is used by the builder; removed the throwaway smoke-check output afterward.
+- 2026-04-17: Removed the completed presentation-only reports/ folder and GEMINI.md from the tracked workspace as part of research-focused cleanup.
 
 ## Update Template (Append On Future Changes)
 

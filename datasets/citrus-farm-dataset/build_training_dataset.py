@@ -315,7 +315,7 @@ def process_single_sample(args_tuple) -> Optional[Dict[str, object]]:
                 projection_diag=None,
                 support_path=support_path,
                 zed_metrics=zed_metrics,
-                transform_mode=params.get("transform_mode", "production_current"),
+                transform_mode=params.get("transform_mode", dld.TRANSFORM_MODE),
             )
 
         point_cloud = np.load(lidar_path)["arr_0"]
@@ -370,7 +370,7 @@ def process_single_sample(args_tuple) -> Optional[Dict[str, object]]:
             projection_diag=debug["projection_diag"],
             support_path=support_path,
             zed_metrics=zed_metrics,
-            transform_mode=params.get("transform_mode", "production_current"),
+            transform_mode=params.get("transform_mode", dld.TRANSFORM_MODE),
         )
     except Exception as e:
         print(f"Error processing {os.path.basename(rgb_path)}: {e}")
@@ -388,13 +388,13 @@ def main() -> None:
         "--output_dir",
         default=None,
         help=(
-            "Output folder. Defaults to prepared_training_dataset for production_current, "
-            "or prepared_training_dataset_<transform_mode> for alternate transforms."
+            "Output folder. Defaults to prepared_training_dataset for the current final/default "
+            "transform, or prepared_training_dataset_<transform_mode> for alternate transforms."
         ),
     )
     parser.add_argument(
         "--transform_mode",
-        default="production_current",
+        default=dld.TRANSFORM_MODE,
         choices=dld.SUPPORTED_TRANSFORM_MODES,
         help="LiDAR-to-ZED calibration convention used to generate dense labels.",
     )
@@ -496,7 +496,7 @@ def main() -> None:
     if output_dir_name is None:
         output_dir_name = (
             "prepared_training_dataset"
-            if args.transform_mode == "production_current"
+            if args.transform_mode == dld.TRANSFORM_MODE
             else f"prepared_training_dataset_{args.transform_mode}"
         )
     output_dir = os.path.abspath(os.path.join(script_root, output_dir_name))

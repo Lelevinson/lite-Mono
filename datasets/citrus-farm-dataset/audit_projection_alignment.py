@@ -124,8 +124,11 @@ def project_sparse(
 
     sparse_depth = np.zeros(img_shape, dtype=np.float32)
     for i in range(len(img_pts)):
-        u, v = int(np.round(img_pts[i, 0])), int(np.round(img_pts[i, 1]))
+        x, y = img_pts[i, 0], img_pts[i, 1]
         z = depths[i]
+        if not (np.isfinite(x) and np.isfinite(y) and np.isfinite(z)):
+            continue
+        u, v = int(np.round(x)), int(np.round(y))
         if 0 <= u < img_shape[1] and 0 <= v < img_shape[0] and z > 0:
             if sparse_depth[v, u] == 0 or z < sparse_depth[v, u]:
                 sparse_depth[v, u] = z
@@ -462,6 +465,11 @@ def main() -> None:
     parser.add_argument("--local_idw_max_relative_depth_spread", type=float, default=0.35)
     parser.add_argument("--zed_uint16_scale", type=float, default=0.001)
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument(
+        "--metrics_only",
+        action="store_true",
+        help="Compute audit CSV/summary metrics without writing overlay/detail PNG panels.",
+    )
     args = parser.parse_args()
 
     script_root = os.path.dirname(os.path.abspath(__file__))
@@ -470,6 +478,7 @@ def main() -> None:
     zed_depth_dir = os.path.abspath(os.path.join(script_root, args.zed_depth_dir))
     output_dir = os.path.abspath(os.path.join(script_root, args.output_dir))
     calibration_yaml = os.path.join(script_root, "Calibration", "results", "01-multi-cam-result.yaml")
+    os.makedirs(output_dir, exist_ok=True)
 
     all_rgb = sorted(dld.glob.glob(os.path.join(rgb_dir, "*.png")))
     all_lidar = sorted(dld.glob.glob(os.path.join(lidar_dir, "*.npz")))
@@ -537,8 +546,10 @@ def main() -> None:
             f"{base_name} | lidar={os.path.basename(lidar_path)} | "
             f"delta={delta_ns / 1e6:.3f} ms"
         )
-        overlay_path = os.path.join(output_dir, "overlays", f"{sample_number:02d}_{base_name}.png")
-        make_overlay_panel(rgb, sparse_maps, zed_depth, overlay_path, title)
+        overlay_path = None
+        if not args.metrics_only:
+            overlay_path = os.path.join(output_dir, "overlays", f"{sample_number:02d}_{base_name}.png")
+            make_overlay_panel(rgb, sparse_maps, zed_depth, overlay_path, title)
 
         row = {
             "sample": sample_number,
@@ -547,7 +558,7 @@ def main() -> None:
             "zed_depth_rel": to_rel(zed_path, script_root) if zed_path else None,
             "time_delta_ms": round(delta_ns / 1e6, 3),
             "zed_time_delta_ms": round(zed_delta_ns / 1e6, 3) if zed_delta_ns is not None else None,
-            "overlay_rel": to_rel(overlay_path, script_root),
+            "overlay_rel": to_rel(overlay_path, script_root) if overlay_path else None,
         }
 
         detail_modes = ["production_current", "exact_lidar_parent_child_inverted"]
@@ -589,18 +600,21 @@ def main() -> None:
             except Exception as exc:
                 print(f"[{sample_number}] Dense {detail_mode} projection failed: {exc}")
 
-            make_detail_panel(
-                rgb,
-                sparse_maps[detail_mode],
-                dense_depth,
-                dist_to_laser,
-                support_mask,
-                zed_depth,
-                detail_path,
-                title,
-                detail_mode,
+            if not args.metrics_only:
+                make_detail_panel(
+                    rgb,
+                    sparse_maps[detail_mode],
+                    dense_depth,
+                    dist_to_laser,
+                    support_mask,
+                    zed_depth,
+                    detail_path,
+                    title,
+                    detail_mode,
+                )
+            row[f"{detail_mode}_detail_rel"] = (
+                to_rel(detail_path, script_root) if not args.metrics_only else None
             )
-            row[f"{detail_mode}_detail_rel"] = to_rel(detail_path, script_root)
             row[f"{detail_mode}_dense_fill_ratio"] = round(
                 float(map_diag.get("dense_fill_ratio", 0.0)), 6
             )
@@ -616,10 +630,13 @@ def main() -> None:
             row[f"{candidate_name}_depth_median"] = diag["depth_median"]
         rows.append(row)
 
-        print(
-            f"[{sample_number}] wrote {to_rel(overlay_path, script_root)} and "
-            f"{len(detail_modes)} detail panels"
-        )
+        if args.metrics_only:
+            print(f"[{sample_number}] computed metrics for {base_name}")
+        else:
+            print(
+                f"[{sample_number}] wrote {to_rel(overlay_path, script_root)} and "
+                f"{len(detail_modes)} detail panels"
+            )
 
     write_csv(os.path.join(output_dir, "audit_metrics.csv"), rows)
     with open(os.path.join(output_dir, "audit_summary.json"), "w", encoding="utf-8") as fp:
@@ -633,9 +650,13 @@ def main() -> None:
                     "exact_lidar_parent_child_inverted",
                 ],
                 "manual_review_note": (
-                    "Open overlays/ to compare all transform candidates. Open "
-                    "details_production_current/ and details_exact_lidar_parent_child_inverted/ "
-                    "to compare dense-label diagnostics for the two plausible routes."
+                    "This run was metrics-only; use audit_metrics.csv for route comparison."
+                    if args.metrics_only
+                    else (
+                        "Open overlays/ to compare all transform candidates. Open "
+                        "details_production_current/ and details_exact_lidar_parent_child_inverted/ "
+                        "to compare dense-label diagnostics for the two plausible routes."
+                    )
                 ),
             },
             fp,

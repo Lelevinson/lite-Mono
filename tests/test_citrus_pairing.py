@@ -77,6 +77,10 @@ class PairingPolicyTests(unittest.TestCase):
         self.assertEqual(delta_ns, 20)
 
     def test_transform_modes_are_available_and_distinct(self):
+        self.assertEqual(
+            self.dld.TRANSFORM_MODE, "exact_lidar_parent_child_inverted"
+        )
+
         prod_rvec, prod_tvec = self.dld.get_lidar_to_zed_transform(
             "production_current"
         )

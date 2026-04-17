@@ -147,7 +147,7 @@ def matrix_to_rvec_tvec(transform):
     return rvec, tvec
 
 
-def lidar_to_zed_matrix(transform_mode="production_current"):
+def lidar_to_zed_matrix(transform_mode="exact_lidar_parent_child_inverted"):
     """Build LiDAR-to-ZED transform variants for production and comparison runs."""
 
     if transform_mode == "production_current":
@@ -176,7 +176,7 @@ def lidar_to_zed_matrix(transform_mode="production_current"):
     )
 
 
-def get_lidar_to_zed_transform(transform_mode="production_current"):
+def get_lidar_to_zed_transform(transform_mode="exact_lidar_parent_child_inverted"):
     """Return OpenCV rvec/tvec for a named LiDAR-to-ZED transform mode."""
 
     return matrix_to_rvec_tvec(lidar_to_zed_matrix(transform_mode))
@@ -517,7 +517,7 @@ def build_metrics_row(
     sparse_morph_iters,
     max_interp_depth_m,
     clamp_only_interpolated,
-    transform_mode="production_current",
+    transform_mode="exact_lidar_parent_child_inverted",
 ):
 
     return {
@@ -773,8 +773,11 @@ def project_and_densify(
 
     # Paint the valid laser dots onto the canvas
     for i in range(len(img_pts)):
-        u, v = int(np.round(img_pts[i, 0])), int(np.round(img_pts[i, 1]))
+        x, y = img_pts[i, 0], img_pts[i, 1]
         z = depths[i]
+        if not (np.isfinite(x) and np.isfinite(y) and np.isfinite(z)):
+            continue
+        u, v = int(np.round(x)), int(np.round(y))
 
         # Only keep points inside the 720p image and physically in front of the lens
         if 0 <= u < img_shape[1] and 0 <= v < img_shape[0] and z > 0:
@@ -817,7 +820,8 @@ def project_and_densify(
 
     candidate_mask = dist_to_laser <= distance_mask_px
 
-    print("      Interpolating sparse points (this takes a second)...")
+    if verbose:
+        print("      Interpolating sparse points (this takes a second)...")
     if interpolation_method == "local_idw":
         dense_depth_map = local_idw_interpolate(
             sparse_depth_map,
@@ -893,7 +897,7 @@ lidar_folder = "extracted_lidar/velodyne_points"
 output_folder = "extracted_dense_lidar"
 
 
-TRANSFORM_MODE = "production_current"
+TRANSFORM_MODE = "exact_lidar_parent_child_inverted"
 
 
 MAX_TIME_DELTA_SEC = 0.5
