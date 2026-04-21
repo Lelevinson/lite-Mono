@@ -1,4 +1,4 @@
-# Paper Content Candidates
+# Paper Shortlist
 
 This file tracks research artifacts that may later become paper tables, figures, or method details.
 
@@ -6,10 +6,9 @@ This file tracks research artifacts that may later become paper tables, figures,
 
 ### Dataset/Label Route Selection
 
-Source:
+Evidence notes:
 
-- `research/dataset_audit/final_label_route_decision.md`
-- `research/dataset_audit/time_spread_metrics_200_summary.md`
+- `research/dataset_notes.md`
 - raw metrics: `datasets/citrus-farm-dataset/projection_alignment_audit/time_spread_metrics_200/audit_metrics.csv`
 
 Why it matters:
@@ -31,10 +30,10 @@ Current status:
 
 ### Conservative Dense Label Generation
 
-Source:
+Evidence notes:
 
 - `datasets/citrus-farm-dataset/densify_lidar.py`
-- `research/dataset_audit/time_spread_metrics_200_summary.md`
+- `research/dataset_notes.md`
 
 Why it matters:
 
@@ -56,9 +55,9 @@ Current status:
 
 ### Original Lite-Mono Qualitative Citrus Prediction
 
-Source:
+Evidence notes:
 
-- `research/baselines/original_lite_mono_single_image_demo.md`
+- `research/baseline_notes.md`
 - generated local files under `research/generated/lite_mono_single_image_demo/`
 
 Why it matters:

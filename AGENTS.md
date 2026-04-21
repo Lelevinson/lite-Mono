@@ -24,6 +24,39 @@ All new chats should read this file first.
 Always read AGENTS.md first, then continue work.
 If project changes are made, update AGENTS.md before finishing.
 
+## Context Document Roles
+
+Use the project documents with clear roles:
+
+1. `AGENTS.md` is the source of truth for project goal, current status, milestone progress, pipeline decisions, commands, and repo-impacting changes.
+2. `research/student_qna.md` is the beginner-friendly companion note for recurring questions, plain-language explanations, folder meanings, and stable definitions.
+3. `research/` notes such as dataset-audit summaries and baseline notes are paper-facing research records, not general onboarding notes.
+
+Update policy:
+
+1. Update `AGENTS.md` whenever code, config, data-pipeline behavior, experiment defaults, milestone status, important paths, or research decisions change.
+2. Update `research/student_qna.md` whenever a new recurring confusion is explained in a way that future students will likely need again.
+3. If a change affects both project status and beginner understanding, update both files in the same turn.
+4. Keep `research/student_qna.md` simple and stable; do not use it as a scratchpad or temporary log.
+
+Research-note workflow for future chats:
+
+1. If a result is mainly evidence for dataset quality or label generation, write or update `research/dataset_notes.md`.
+2. If a result is mainly evidence for model behavior or comparison, write or update `research/baseline_notes.md`.
+3. If a result might later appear in the paper, add or refresh a short entry in `research/paper_shortlist.md`.
+4. If the result changes project status, milestones, defaults, commands, or decisions, also update `AGENTS.md`.
+5. If the result answers a recurring beginner question, also update `research/student_qna.md`.
+
+## User Collaboration Preference
+
+When the user is talking about the codebase, be careful and verify details before answering.
+
+1. Do not assume file importance, workflow relevance, or implementation behavior without checking the actual files or recent project context first.
+2. Look for edge cases and mismatches before speaking confidently about code, tests, scripts, folders, or pipeline behavior.
+3. If something is only a guess, say clearly that it is a guess.
+4. For ideas, brainstorming, or non-code discussion, it is okay to propose possibilities as long as assumptions are clearly labeled.
+5. Do not treat legacy or sidecar files as important to the active workflow unless that relevance is confirmed from the repository or current project notes.
+
 ## Project Goal
 
 Publish an improved Lite-Mono-style monocular depth estimation method for vegetation-dense agricultural environments, especially citrus/orchard robot navigation for a lightweight RGB-only pest-killing robot perception stack.
@@ -142,7 +175,7 @@ Legacy linear metrics probe result (2026-04-15):
 1. Generated two 50-sample metrics probes using the older `linear` interpolation method, not full datasets:
    - `prepared_training_dataset_metrics_probe_50/` using `production_current`
    - `prepared_training_dataset_metrics_probe_50_exact/` using `exact_lidar_parent_child_inverted`
-2. These probe outputs still exist locally, but they are legacy comparison artifacts now that default dense-label interpolation has changed to `local_idw`.
+2. These probe outputs were later removed during workspace cleanup, but their summary numbers remain here as historical context for the older `linear` interpolation route comparison.
 3. Both probes used the first 50 matched RGB-LiDAR samples, so split validation is not meaningful yet: all 50 samples fall into one time block and therefore train=50, val=0, test=0.
 4. `production_current` legacy-linear probe summary:
    - median RGB-LiDAR delta: 39.211 ms
@@ -233,7 +266,7 @@ Legacy linear metrics probe result (2026-04-15):
 7. Full prepared dataset build has not been run in this cleanup commit because it is a large local artifact step. Next build command:
    - `D:/Conda_Envs/lite-mono/python.exe build_training_dataset.py`
 8. Research note:
-   - `research/dataset_audit/final_label_route_decision.md`
+   - `research/dataset_notes.md`
 
 ## Original Lite-Mono Citrus Sanity Run (2026-04-16)
 
@@ -317,10 +350,10 @@ Alternate transform comparison:
 Paper/research notes:
 
 1. research/README.md
-2. research/paper_content_candidates.md
-3. research/dataset_audit/final_label_route_decision.md
-4. research/dataset_audit/time_spread_metrics_200_summary.md
-5. research/baselines/original_lite_mono_single_image_demo.md
+2. research/student_qna.md
+3. research/paper_shortlist.md
+4. research/dataset_notes.md
+5. research/baseline_notes.md
 
 Generated local research artifacts:
 
@@ -333,6 +366,14 @@ Current communication stance:
 3. Keep paper-useful evidence, experiment summaries, and paper content candidates under research/.
 4. Keep bulky generated images/NPY artifacts under ignored research/generated/.
 5. Explain interpolation as a useful initial gap-filling method, not as perfect ground truth. Use "LiDAR-densified depth labels with valid masks" for paper-facing language.
+
+Research workspace map:
+
+1. `research/paper_shortlist.md` = shortlist of results that may later appear in the paper.
+2. `research/dataset_notes.md` = evidence and decisions about dataset building, alignment, and label quality.
+3. `research/baseline_notes.md` = evidence and notes about original-model and baseline runs.
+4. `research/student_qna.md` = simple recurring explanations for students/team members.
+5. `research/generated/` = ignored local outputs such as images, NPY files, and quick demo artifacts.
 
 ## Core Tunables
 
@@ -484,6 +525,38 @@ Milestone 6 - Paper package:
 2. Include qualitative examples in canopy, aisle, trunk, ground, and high-occlusion scenes.
 3. Document dataset construction enough for reproducibility.
 
+## Timeline Snapshot (2026-04-21)
+
+Done:
+
+1. Extracted the current local Citrus RGB, ZED depth, and LiDAR subset.
+2. Verified timestamp-based RGB-LiDAR pairing logic with same-session preference and optional fallback.
+3. Audited four LiDAR-to-camera transform candidates and rejected the two clearly wrong routes.
+4. Replaced the old default linear fill with conservative `local_idw` densification.
+5. Ran small visual audits plus a 200-sample time-spread metrics probe.
+6. Locked `exact_lidar_parent_child_inverted` as the final/default dense-label route.
+7. Ran one original Lite-Mono qualitative sanity prediction on a Citrus RGB image.
+
+Current:
+
+1. Milestone 0 is logically complete from an audit/decision perspective, but the full `prepared_training_dataset/` build has not been run yet as a large local artifact step.
+2. Milestone 1 has only started as a qualitative demo; full baseline evaluation on Citrus splits is still pending.
+3. We now need cleaner, reusable research communication notes for both paper-facing evidence and beginner-facing explanations.
+
+Next:
+
+1. Run the full `build_training_dataset.py` build with the final/default route.
+2. Record final sample counts plus train/val/test split counts for paper use.
+3. Run original Lite-Mono on the built Citrus validation/test split and evaluate against dense labels with valid masks.
+
+Later:
+
+1. Add Citrus-specific training/evaluation integration into the Lite-Mono codebase.
+2. Fine-tune/self-supervise Lite-Mono on Citrus RGB sequences.
+3. Propose and test one lightweight vegetation-focused improvement.
+4. Optionally test supervised or hybrid training with dense LiDAR labels.
+5. Assemble the paper package.
+
 ## Quick Commands
 
 From datasets/citrus-farm-dataset directory:
@@ -558,11 +631,16 @@ One-image original Lite-Mono Citrus sanity run:
 - 2026-04-16: Ran one original Lite-Mono pretrained sanity prediction on an extracted Citrus RGB frame, recorded the command/output files, and clarified that this starts but does not complete the Citrus baseline milestone.
 - 2026-04-16: Removed the generated original Lite-Mono `*_disp` outputs from the extracted RGB dataset folder, reran the one-image demo from an ignored generated-artifact folder, and kept demo artifacts separate from dataset artifacts.
 - 2026-04-16: Added metrics-only projection audit support, hardened projection against non-finite projected points, and ran a 200-sample time-spread local_idw route probe; `exact_lidar_parent_child_inverted` had lower ZED absolute and relative error on all 200 paired comparisons while `production_current` kept higher dense coverage.
-- 2026-04-16: Added research/dataset_audit/time_spread_metrics_200_summary.md as a readable Markdown summary of the 200-sample metrics-only route probe, because the raw output is CSV/JSON rather than paper-friendly Markdown.
-- 2026-04-16: Tidied research artifacts by moving paper-useful notes out of reports/ into research/, adding research/paper_content_candidates.md, and moving ignored Lite-Mono demo outputs to research/generated/.
+- 2026-04-16: Added the readable Markdown summary for the 200-sample metrics-only route probe, because the raw output is CSV/JSON rather than paper-friendly Markdown.
+- 2026-04-16: Tidied research artifacts by moving paper-useful notes out of reports/ into research/, adding research/paper_shortlist.md, and moving ignored Lite-Mono demo outputs to research/generated/.
 - 2026-04-17: Ran a final 12-sample time-spread visual spot-check and locked `exact_lidar_parent_child_inverted` as the default/final dense-label transform route; `production_current` remains available as an alternate comparison route.
 - 2026-04-17: Smoke-tested build_training_dataset.py with one sample to confirm the final/default transform is used by the builder; removed the throwaway smoke-check output afterward.
 - 2026-04-17: Removed the completed presentation-only reports/ folder and GEMINI.md from the tracked workspace as part of research-focused cleanup.
+- 2026-04-21: Added explicit document-role rules so AGENTS.md remains the project source of truth while `research/student_qna.md` stores recurring beginner-facing explanations; also added a clearer timeline snapshot for done/current/next work.
+- 2026-04-21: Renamed research-note files to simpler names and added an explicit research-note workflow plus workspace map so future chats can place notes consistently.
+- 2026-04-21: Simplified the research-note structure again by merging the small dataset-audit and baseline evidence files into `research/dataset_notes.md` and `research/baseline_notes.md`, keeping only the paper shortlist, student Q&A, and ignored generated outputs alongside them.
+- 2026-04-21: Removed the legacy 50-sample prepared-dataset probe output folders from `datasets/citrus-farm-dataset/` after their results were already captured in notes, to reduce workspace clutter.
+- 2026-04-22: Added an explicit user-collaboration preference to verify codebase details before answering, check edge cases instead of assuming file/workflow importance, and label guesses clearly when discussing ideas versus confirmed repository behavior.
 
 ## Update Template (Append On Future Changes)
 
