@@ -10,6 +10,7 @@ from rosbags.highlevel import AnyReader
 LEFT_RGB_TOPIC = "/zed2i/zed_node/left/image_rect_color"
 DEPTH_TOPIC = "/zed2i/zed_node/depth/depth_registered"
 ALLOWED_TOPICS = {LEFT_RGB_TOPIC, DEPTH_TOPIC}
+SCRIPT_ROOT = Path(__file__).resolve().parent
 
 
 def decode_sensor_image(msg):
@@ -132,19 +133,29 @@ def filter_rosbags(src_folder, prefixes_of_interest):
     return rosbags_of_interest
 
 
+def resolve_local_path(path_str):
+    path = Path(path_str)
+    if path.is_absolute():
+        return path
+    return SCRIPT_ROOT / path
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Extract data from rosbags.")
     parser.add_argument("src_folder", help="Source folder containing rosbags")
     parser.add_argument("output_folder", help="Output folder to save extracted data")
     args = parser.parse_args()
 
+    src_folder = resolve_local_path(args.src_folder)
+    output_folder = resolve_local_path(args.output_folder)
+
     # Keep original dataset naming convention: only process bag files starting with 'zed'.
     rosbag_prefixes_of_interest = ["zed"]
-    rosbags_to_process = filter_rosbags(args.src_folder, rosbag_prefixes_of_interest)
+    rosbags_to_process = filter_rosbags(str(src_folder), rosbag_prefixes_of_interest)
     rosbags_to_process.sort()
 
     if not rosbags_to_process:
-        print(f"No ZED bags found in {args.src_folder}")
+        print(f"No ZED bags found in {src_folder}")
         exit(1)
 
     print(f"Found {len(rosbags_to_process)} ZED bags to process.")
@@ -154,15 +165,15 @@ if __name__ == "__main__":
         
         # Skip check: if the first few frames of this bag already exist, skip it.
         prefix = bag_name.replace(".", "_")
-        rgb_dir = os.path.join(args.output_folder, "zed2i_zed_node_left_image_rect_color")
+        rgb_dir = os.path.join(str(output_folder), "zed2i_zed_node_left_image_rect_color")
         if os.path.exists(rgb_dir):
             existing = [f for f in os.listdir(rgb_dir) if f.startswith(prefix)]
             if len(existing) > 50:
                 print(f"  Skipping (found {len(existing)} existing files).")
                 continue
 
-        bag_path = os.path.join(args.src_folder, bag_name)
+        bag_path = os.path.join(str(src_folder), bag_name)
         try:
-            extract_data_from_bag(bag_path, args.output_folder)
+            extract_data_from_bag(bag_path, str(output_folder))
         except Exception as e:
             print(f"  Error processing {bag_name}: {e}")

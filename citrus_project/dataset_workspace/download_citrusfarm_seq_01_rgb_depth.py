@@ -8,6 +8,8 @@ import requests
 import hashlib
 from datetime import datetime, timedelta
 
+SCRIPT_ROOT = os.path.dirname(os.path.abspath(__file__))
+
 
 def ComputeMD5(file_path):
     hash_md5 = hashlib.md5()
@@ -31,6 +33,10 @@ def ParseBagStartTime(filename):
 
 def SortFilesByBagTime(file_list):
     return sorted(file_list, key=lambda f: (ParseBagStartTime(f) or datetime.max, f))
+
+
+def LocalPath(relative_path):
+    return os.path.join(SCRIPT_ROOT, relative_path.replace("/", os.sep))
 
 
 def InferReferenceSpanSeconds(reference_files, default_seconds=540):
@@ -126,8 +132,9 @@ def DownloadFiles(
         filenames = folder_dict.get(folder, {})
 
         # Create folder locally if not exists
-        if not os.path.exists(folder):
-            os.makedirs(folder)
+        local_folder = LocalPath(folder)
+        if not os.path.exists(local_folder):
+            os.makedirs(local_folder)
 
         # Filter target files before downloading
         if folder in data_folders:
@@ -170,7 +177,7 @@ def DownloadFiles(
             target_files = filenames.keys()
 
         for filename in target_files:
-            local_file_path = f"{folder}/{filename}"
+            local_file_path = os.path.join(local_folder, filename)
 
             # Skip download if file already exists
             if os.path.exists(local_file_path):
@@ -192,7 +199,7 @@ def DownloadFiles(
     # MD5 Verification Phase
     print(f"\nVerifying MD5 for downloaded files.")
     for folder, filename in files_to_verify:
-        local_file_path = f"{folder}/{filename}"
+        local_file_path = os.path.join(LocalPath(folder), filename)
         expected_md5 = folder_dict[folder][filename]["md5"]
         computed_md5 = ComputeMD5(local_file_path)
 

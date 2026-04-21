@@ -11,7 +11,7 @@ Use this folder for material that may later support the paper:
 - paper table/figure candidates
 - beginner-friendly reference notes that help the team explain the work consistently
 
-Do not store large generated outputs here directly. Put generated images, NumPy files, and other bulky local artifacts under `research/generated/`, which is ignored by git.
+Do not store large generated outputs here directly. Put generated images, NumPy files, and other bulky local artifacts under `citrus_project/research/generated/`, which is ignored by git.
 
 Current tracked notes include:
 
@@ -27,3 +27,4 @@ Quick structure:
 - `baseline_notes.md` = baseline/model experiment notes
 - `student_qna.md` = simple recurring explanations for students
 - `generated/` = ignored local outputs only
+

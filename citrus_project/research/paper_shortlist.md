@@ -8,8 +8,8 @@ This file tracks research artifacts that may later become paper tables, figures,
 
 Evidence notes:
 
-- `research/dataset_notes.md`
-- raw metrics: `datasets/citrus-farm-dataset/projection_alignment_audit/time_spread_metrics_200/audit_metrics.csv`
+- `citrus_project/research/dataset_notes.md`
+- raw metrics: `citrus_project/dataset_workspace/projection_alignment_audit/time_spread_metrics_200/audit_metrics.csv`
 
 Why it matters:
 
@@ -32,8 +32,8 @@ Current status:
 
 Evidence notes:
 
-- `datasets/citrus-farm-dataset/densify_lidar.py`
-- `research/dataset_notes.md`
+- `citrus_project/dataset_workspace/densify_lidar.py`
+- `citrus_project/research/dataset_notes.md`
 
 Why it matters:
 
@@ -57,8 +57,8 @@ Current status:
 
 Evidence notes:
 
-- `research/baseline_notes.md`
-- generated local files under `research/generated/lite_mono_single_image_demo/`
+- `citrus_project/research/baseline_notes.md`
+- generated local files under `citrus_project/research/generated/lite_mono_single_image_demo/`
 
 Why it matters:
 
@@ -89,3 +89,4 @@ Why not:
 
 - Useful for explaining progress at the time, but not a primary research artifact.
 - Any table/figure from it should be regenerated from raw metrics or tracked research summaries before paper use.
+

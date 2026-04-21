@@ -29,23 +29,40 @@ If project changes are made, update AGENTS.md before finishing.
 Use the project documents with clear roles:
 
 1. `AGENTS.md` is the source of truth for project goal, current status, milestone progress, pipeline decisions, commands, and repo-impacting changes.
-2. `research/student_qna.md` is the beginner-friendly companion note for recurring questions, plain-language explanations, folder meanings, and stable definitions.
-3. `research/` notes such as dataset-audit summaries and baseline notes are paper-facing research records, not general onboarding notes.
+2. `citrus_project/research/student_qna.md` is the beginner-friendly companion note for recurring questions, plain-language explanations, folder meanings, and stable definitions.
+3. `citrus_project/research/` notes such as dataset-audit summaries and baseline notes are paper-facing research records, not general onboarding notes.
 
 Update policy:
 
 1. Update `AGENTS.md` whenever code, config, data-pipeline behavior, experiment defaults, milestone status, important paths, or research decisions change.
-2. Update `research/student_qna.md` whenever a new recurring confusion is explained in a way that future students will likely need again.
+2. Update `citrus_project/research/student_qna.md` whenever a new recurring confusion is explained in a way that future students will likely need again.
 3. If a change affects both project status and beginner understanding, update both files in the same turn.
-4. Keep `research/student_qna.md` simple and stable; do not use it as a scratchpad or temporary log.
+4. Keep `citrus_project/research/student_qna.md` simple and stable; do not use it as a scratchpad or temporary log.
+
+## Workspace Layout
+
+The repository now has a deliberate split between upstream Lite-Mono code and project-owned Citrus research work.
+
+1. Original/upstream-style Lite-Mono code remains at the repo root.
+2. Project-owned Citrus work lives under `citrus_project/`.
+3. `citrus_project/dataset_workspace/` is the active Citrus dataset pipeline workspace.
+4. `citrus_project/research/` stores project notes, paper shortlist material, and beginner-facing explanations.
+5. `citrus_project/milestones/` is reserved for milestone-specific code, notes, helpers, and outputs as milestone work begins.
+6. `citrus_project/README.md` and `citrus_project/milestones/README.md` describe this custom workspace layout.
 
 Research-note workflow for future chats:
 
-1. If a result is mainly evidence for dataset quality or label generation, write or update `research/dataset_notes.md`.
-2. If a result is mainly evidence for model behavior or comparison, write or update `research/baseline_notes.md`.
-3. If a result might later appear in the paper, add or refresh a short entry in `research/paper_shortlist.md`.
+1. If a result is mainly evidence for dataset quality or label generation, write or update `citrus_project/research/dataset_notes.md`.
+2. If a result is mainly evidence for model behavior or comparison, write or update `citrus_project/research/baseline_notes.md`.
+3. If a result might later appear in the paper, add or refresh a short entry in `citrus_project/research/paper_shortlist.md`.
 4. If the result changes project status, milestones, defaults, commands, or decisions, also update `AGENTS.md`.
-5. If the result answers a recurring beginner question, also update `research/student_qna.md`.
+5. If the result answers a recurring beginner question, also update `citrus_project/research/student_qna.md`.
+
+Milestone workspace rule:
+
+1. If new code or notes belong clearly to one milestone, prefer placing them under the matching folder in `citrus_project/milestones/`.
+2. Keep cross-cutting dataset pipeline scripts in `citrus_project/dataset_workspace/`.
+3. Keep cross-cutting paper/support notes in `citrus_project/research/`.
 
 ## User Collaboration Preference
 
@@ -107,13 +124,13 @@ How our pipeline relates to author intent:
 
 ## Canonical Script Order
 
-1. datasets/citrus-farm-dataset/download_citrusfarm_seq_01_lidar.py
-2. datasets/citrus-farm-dataset/download_citrusfarm_seq_01_rgb_depth.py
-3. datasets/citrus-farm-dataset/extract_left_rgbd_from_raw.py
-4. datasets/citrus-farm-dataset/extract_lidar_from_raw.py
-5. datasets/citrus-farm-dataset/audit_projection_alignment.py
-6. datasets/citrus-farm-dataset/densify_lidar.py
-7. datasets/citrus-farm-dataset/build_training_dataset.py
+1. citrus_project/dataset_workspace/download_citrusfarm_seq_01_lidar.py
+2. citrus_project/dataset_workspace/download_citrusfarm_seq_01_rgb_depth.py
+3. citrus_project/dataset_workspace/extract_left_rgbd_from_raw.py
+4. citrus_project/dataset_workspace/extract_lidar_from_raw.py
+5. citrus_project/dataset_workspace/audit_projection_alignment.py
+6. citrus_project/dataset_workspace/densify_lidar.py
+7. citrus_project/dataset_workspace/build_training_dataset.py
 
 ## Current Status Snapshot (2026-03-31)
 
@@ -224,7 +241,7 @@ Legacy linear metrics probe result (2026-04-15):
 1. Added `--metrics_only` to `audit_projection_alignment.py` so larger route-comparison probes can write CSV/JSON metrics without generating hundreds of overlay/detail PNG panels.
 2. Hardened sparse and dense projection loops to skip non-finite projected points instead of crashing when a candidate transform produces infinite pixel coordinates.
 3. Ran a 200-sample time-spread metrics-only probe:
-   - `D:/Conda_Envs/lite-mono/python.exe datasets/citrus-farm-dataset/audit_projection_alignment.py --max_samples 200 --metrics_only --output_dir projection_alignment_audit/time_spread_metrics_200`
+   - `D:/Conda_Envs/lite-mono/python.exe citrus_project/dataset_workspace/audit_projection_alignment.py --max_samples 200 --metrics_only --output_dir projection_alignment_audit/time_spread_metrics_200`
 4. Probe scope:
    - 200 samples selected across 5282 matched RGB-LiDAR pairs
    - first sampled RGB: `zed_2023-07-18-14-26-49_0_bag_1689715609331936216.png`
@@ -252,11 +269,11 @@ Legacy linear metrics probe result (2026-04-15):
 ## Final label route decision (2026-04-17)
 
 1. Ran a final 12-sample time-spread visual spot-check:
-   - `D:/Conda_Envs/lite-mono/python.exe datasets/citrus-farm-dataset/audit_projection_alignment.py --max_samples 12 --output_dir projection_alignment_audit/time_spread_visual_12`
+   - `D:/Conda_Envs/lite-mono/python.exe citrus_project/dataset_workspace/audit_projection_alignment.py --max_samples 12 --output_dir projection_alignment_audit/time_spread_visual_12`
 2. Visual outputs are local ignored diagnostics:
-   - `datasets/citrus-farm-dataset/projection_alignment_audit/time_spread_visual_12/overlays/`
-   - `datasets/citrus-farm-dataset/projection_alignment_audit/time_spread_visual_12/details_production_current/`
-   - `datasets/citrus-farm-dataset/projection_alignment_audit/time_spread_visual_12/details_exact_lidar_parent_child_inverted/`
+   - `citrus_project/dataset_workspace/projection_alignment_audit/time_spread_visual_12/overlays/`
+   - `citrus_project/dataset_workspace/projection_alignment_audit/time_spread_visual_12/details_production_current/`
+   - `citrus_project/dataset_workspace/projection_alignment_audit/time_spread_visual_12/details_exact_lidar_parent_child_inverted/`
 3. Visual spot-check result:
    - `exact_lidar_parent_child_inverted` remains visually plausible across time-spread samples.
    - the two rejected direct/no-invert candidates remain visibly wrong.
@@ -266,17 +283,17 @@ Legacy linear metrics probe result (2026-04-15):
 7. Full prepared dataset build has not been run in this cleanup commit because it is a large local artifact step. Next build command:
    - `D:/Conda_Envs/lite-mono/python.exe build_training_dataset.py`
 8. Research note:
-   - `research/dataset_notes.md`
+   - `citrus_project/research/dataset_notes.md`
 
 ## Original Lite-Mono Citrus Sanity Run (2026-04-16)
 
 1. Ran original pretrained `weights/lite-mono` on one copied Citrus RGB image using `test_simple.py`.
 2. Keep Lite-Mono demo outputs out of extracted dataset folders. The RGB image should be copied to an ignored demo/output folder before running `test_simple.py`, because `test_simple.py` writes `*_disp.jpeg` and `*_disp.npy` next to the input image.
 3. Command used:
-   - `D:/Conda_Envs/lite-mono/python.exe test_simple.py --load_weights_folder weights/lite-mono --image_path research/generated/lite_mono_single_image_demo/zed_2023-07-18-14-26-49_0_bag_1689715609331936216.png --model lite-mono --no_cuda`
-4. Output files were generated under ignored `research/generated/lite_mono_single_image_demo/`, not under the dataset folder:
-   - `research/generated/lite_mono_single_image_demo/zed_2023-07-18-14-26-49_0_bag_1689715609331936216_disp.jpeg`
-   - `research/generated/lite_mono_single_image_demo/zed_2023-07-18-14-26-49_0_bag_1689715609331936216_disp.npy`
+   - `D:/Conda_Envs/lite-mono/python.exe test_simple.py --load_weights_folder weights/lite-mono --image_path citrus_project/research/generated/lite_mono_single_image_demo/zed_2023-07-18-14-26-49_0_bag_1689715609331936216.png --model lite-mono --no_cuda`
+4. Output files were generated under ignored `citrus_project/research/generated/lite_mono_single_image_demo/`, not under the dataset folder:
+   - `citrus_project/research/generated/lite_mono_single_image_demo/zed_2023-07-18-14-26-49_0_bag_1689715609331936216_disp.jpeg`
+   - `citrus_project/research/generated/lite_mono_single_image_demo/zed_2023-07-18-14-26-49_0_bag_1689715609331936216_disp.npy`
 5. Interpretation: this is a qualitative baseline sanity/demo run only. It starts the Citrus baseline milestone but does not complete it, because Milestone 1 still requires validation/test-set evaluation against LiDAR-densified labels, masks, runtime/size reporting, and failure-case analysis.
 
 ## Current Local Data Snapshot (2026-04-01)
@@ -307,12 +324,12 @@ Use this two-stage rule:
 
 ## Key Data Locations
 
-1. Raw/extracted workspace: datasets/citrus-farm-dataset/
-2. Extracted RGB: datasets/citrus-farm-dataset/extracted_rgbd/zed2i_zed_node_left_image_rect_color/
-3. Extracted LiDAR: datasets/citrus-farm-dataset/extracted_lidar/velodyne_points/
-4. Dense outputs: datasets/citrus-farm-dataset/extracted_dense_lidar/
-5. Prepared dataset output: datasets/citrus-farm-dataset/prepared_training_dataset/
-6. Projection audit output: datasets/citrus-farm-dataset/projection_alignment_audit/ (generated diagnostics; ignored by git)
+1. Raw/extracted workspace: citrus_project/dataset_workspace/
+2. Extracted RGB: citrus_project/dataset_workspace/extracted_rgbd/zed2i_zed_node_left_image_rect_color/
+3. Extracted LiDAR: citrus_project/dataset_workspace/extracted_lidar/velodyne_points/
+4. Dense outputs: citrus_project/dataset_workspace/extracted_dense_lidar/
+5. Prepared dataset output: citrus_project/dataset_workspace/prepared_training_dataset/
+6. Projection audit output: citrus_project/dataset_workspace/projection_alignment_audit/ (generated diagnostics; ignored by git)
 
 ## Prepared Dataset Artifacts
 
@@ -349,31 +366,31 @@ Alternate transform comparison:
 
 Paper/research notes:
 
-1. research/README.md
-2. research/student_qna.md
-3. research/paper_shortlist.md
-4. research/dataset_notes.md
-5. research/baseline_notes.md
+1. citrus_project/research/README.md
+2. citrus_project/research/student_qna.md
+3. citrus_project/research/paper_shortlist.md
+4. citrus_project/research/dataset_notes.md
+5. citrus_project/research/baseline_notes.md
 
 Generated local research artifacts:
 
-1. research/generated/ (ignored by git)
+1. citrus_project/research/generated/ (ignored by git)
 
 Current communication stance:
 
 1. The old reports/professor folder was removed because the research structure is being refreshed.
 2. The reports/ presentation folder was removed after the presentation was completed.
-3. Keep paper-useful evidence, experiment summaries, and paper content candidates under research/.
-4. Keep bulky generated images/NPY artifacts under ignored research/generated/.
+3. Keep paper-useful evidence, experiment summaries, and paper content candidates under citrus_project/research/.
+4. Keep bulky generated images/NPY artifacts under ignored citrus_project/research/generated/.
 5. Explain interpolation as a useful initial gap-filling method, not as perfect ground truth. Use "LiDAR-densified depth labels with valid masks" for paper-facing language.
 
 Research workspace map:
 
-1. `research/paper_shortlist.md` = shortlist of results that may later appear in the paper.
-2. `research/dataset_notes.md` = evidence and decisions about dataset building, alignment, and label quality.
-3. `research/baseline_notes.md` = evidence and notes about original-model and baseline runs.
-4. `research/student_qna.md` = simple recurring explanations for students/team members.
-5. `research/generated/` = ignored local outputs such as images, NPY files, and quick demo artifacts.
+1. `citrus_project/research/paper_shortlist.md` = shortlist of results that may later appear in the paper.
+2. `citrus_project/research/dataset_notes.md` = evidence and decisions about dataset building, alignment, and label quality.
+3. `citrus_project/research/baseline_notes.md` = evidence and notes about original-model and baseline runs.
+4. `citrus_project/research/student_qna.md` = simple recurring explanations for students/team members.
+5. `citrus_project/research/generated/` = ignored local outputs such as images, NPY files, and quick demo artifacts.
 
 ## Core Tunables
 
@@ -559,7 +576,7 @@ Later:
 
 ## Quick Commands
 
-From datasets/citrus-farm-dataset directory:
+From citrus_project/dataset_workspace directory:
 
 Download:
 
@@ -587,8 +604,8 @@ Audit:
 
 One-image original Lite-Mono Citrus sanity run:
 
-1. Copy the selected RGB image into `research/generated/lite_mono_single_image_demo/` first, because this folder is ignored and not part of the dataset.
-2. D:/Conda_Envs/lite-mono/python.exe test_simple.py --load_weights_folder weights/lite-mono --image_path research/generated/lite_mono_single_image_demo/zed_2023-07-18-14-26-49_0_bag_1689715609331936216.png --model lite-mono --no_cuda
+1. Copy the selected RGB image into `citrus_project/research/generated/lite_mono_single_image_demo/` first, because this folder is ignored and not part of the dataset.
+2. D:/Conda_Envs/lite-mono/python.exe test_simple.py --load_weights_folder weights/lite-mono --image_path citrus_project/research/generated/lite_mono_single_image_demo/zed_2023-07-18-14-26-49_0_bag_1689715609331936216.png --model lite-mono --no_cuda
 3. Output appears next to the copied input image as `*_disp.jpeg` and `*_disp.npy`.
 
 ## Change Log
@@ -632,15 +649,18 @@ One-image original Lite-Mono Citrus sanity run:
 - 2026-04-16: Removed the generated original Lite-Mono `*_disp` outputs from the extracted RGB dataset folder, reran the one-image demo from an ignored generated-artifact folder, and kept demo artifacts separate from dataset artifacts.
 - 2026-04-16: Added metrics-only projection audit support, hardened projection against non-finite projected points, and ran a 200-sample time-spread local_idw route probe; `exact_lidar_parent_child_inverted` had lower ZED absolute and relative error on all 200 paired comparisons while `production_current` kept higher dense coverage.
 - 2026-04-16: Added the readable Markdown summary for the 200-sample metrics-only route probe, because the raw output is CSV/JSON rather than paper-friendly Markdown.
-- 2026-04-16: Tidied research artifacts by moving paper-useful notes out of reports/ into research/, adding research/paper_shortlist.md, and moving ignored Lite-Mono demo outputs to research/generated/.
+- 2026-04-16: Tidied research artifacts by moving paper-useful notes out of reports/ into citrus_project/research/, adding citrus_project/research/paper_shortlist.md, and moving ignored Lite-Mono demo outputs to citrus_project/research/generated/.
 - 2026-04-17: Ran a final 12-sample time-spread visual spot-check and locked `exact_lidar_parent_child_inverted` as the default/final dense-label transform route; `production_current` remains available as an alternate comparison route.
 - 2026-04-17: Smoke-tested build_training_dataset.py with one sample to confirm the final/default transform is used by the builder; removed the throwaway smoke-check output afterward.
 - 2026-04-17: Removed the completed presentation-only reports/ folder and GEMINI.md from the tracked workspace as part of research-focused cleanup.
-- 2026-04-21: Added explicit document-role rules so AGENTS.md remains the project source of truth while `research/student_qna.md` stores recurring beginner-facing explanations; also added a clearer timeline snapshot for done/current/next work.
+- 2026-04-21: Added explicit document-role rules so AGENTS.md remains the project source of truth while `citrus_project/research/student_qna.md` stores recurring beginner-facing explanations; also added a clearer timeline snapshot for done/current/next work.
 - 2026-04-21: Renamed research-note files to simpler names and added an explicit research-note workflow plus workspace map so future chats can place notes consistently.
-- 2026-04-21: Simplified the research-note structure again by merging the small dataset-audit and baseline evidence files into `research/dataset_notes.md` and `research/baseline_notes.md`, keeping only the paper shortlist, student Q&A, and ignored generated outputs alongside them.
-- 2026-04-21: Removed the legacy 50-sample prepared-dataset probe output folders from `datasets/citrus-farm-dataset/` after their results were already captured in notes, to reduce workspace clutter.
+- 2026-04-21: Simplified the research-note structure again by merging the small dataset-audit and baseline evidence files into `citrus_project/research/dataset_notes.md` and `citrus_project/research/baseline_notes.md`, keeping only the paper shortlist, student Q&A, and ignored generated outputs alongside them.
+- 2026-04-21: Removed the legacy 50-sample prepared-dataset probe output folders from `citrus_project/dataset_workspace/` after their results were already captured in notes, to reduce workspace clutter.
 - 2026-04-22: Added an explicit user-collaboration preference to verify codebase details before answering, check edge cases instead of assuming file/workflow importance, and label guesses clearly when discussing ideas versus confirmed repository behavior.
+- 2026-04-22: Moved the project-owned Citrus dataset workspace and research notes under `citrus_project/`, separating them more clearly from the original Lite-Mono code at repo root.
+- 2026-04-22: Added `citrus_project/milestones/` with per-milestone folders plus workspace README files so future milestone-specific work can live in one consistent place.
+- 2026-04-22: Updated the Citrus download/extract/verify helper scripts so relative paths resolve from `citrus_project/dataset_workspace/`, making the moved workspace less dependent on the caller's current working directory.
 
 ## Update Template (Append On Future Changes)
 

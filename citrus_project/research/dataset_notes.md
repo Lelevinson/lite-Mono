@@ -28,13 +28,13 @@ The two direct/no-invert variants produced clearly wrong vertical projection ban
 
 Raw output files:
 
-- `datasets/citrus-farm-dataset/projection_alignment_audit/time_spread_metrics_200/audit_metrics.csv`
-- `datasets/citrus-farm-dataset/projection_alignment_audit/time_spread_metrics_200/audit_summary.json`
+- `citrus_project/dataset_workspace/projection_alignment_audit/time_spread_metrics_200/audit_metrics.csv`
+- `citrus_project/dataset_workspace/projection_alignment_audit/time_spread_metrics_200/audit_summary.json`
 
 Command:
 
 ```powershell
-D:/Conda_Envs/lite-mono/python.exe datasets/citrus-farm-dataset/audit_projection_alignment.py --max_samples 200 --metrics_only --output_dir projection_alignment_audit/time_spread_metrics_200
+D:/Conda_Envs/lite-mono/python.exe citrus_project/dataset_workspace/audit_projection_alignment.py --max_samples 200 --metrics_only --output_dir projection_alignment_audit/time_spread_metrics_200
 ```
 
 What was tested:
@@ -76,14 +76,14 @@ Route A produces more filled label pixels, but Route B agrees much better with Z
 Command:
 
 ```powershell
-D:/Conda_Envs/lite-mono/python.exe datasets/citrus-farm-dataset/audit_projection_alignment.py --max_samples 12 --output_dir projection_alignment_audit/time_spread_visual_12
+D:/Conda_Envs/lite-mono/python.exe citrus_project/dataset_workspace/audit_projection_alignment.py --max_samples 12 --output_dir projection_alignment_audit/time_spread_visual_12
 ```
 
 Generated local visual diagnostics:
 
-- `datasets/citrus-farm-dataset/projection_alignment_audit/time_spread_visual_12/overlays/`
-- `datasets/citrus-farm-dataset/projection_alignment_audit/time_spread_visual_12/details_production_current/`
-- `datasets/citrus-farm-dataset/projection_alignment_audit/time_spread_visual_12/details_exact_lidar_parent_child_inverted/`
+- `citrus_project/dataset_workspace/projection_alignment_audit/time_spread_visual_12/overlays/`
+- `citrus_project/dataset_workspace/projection_alignment_audit/time_spread_visual_12/details_production_current/`
+- `citrus_project/dataset_workspace/projection_alignment_audit/time_spread_visual_12/details_exact_lidar_parent_child_inverted/`
 
 Visual result:
 
@@ -132,3 +132,4 @@ Still pending:
 - final built-sample counts
 - final train/val/test counts
 - any final parameter lock after the full build
+

@@ -2,8 +2,15 @@ import numpy as np
 import open3d as o3d
 import os
 
+SCRIPT_ROOT = os.path.dirname(os.path.abspath(__file__))
+
 # Replace with the exact filename of ONE of your extracted LiDAR npz files
-lidar_file = "extracted_lidar/velodyne_points/base_2023-07-18-14-26-48_0_bag_1689715609165443992.npz"
+lidar_file = os.path.join(
+    SCRIPT_ROOT,
+    "extracted_lidar",
+    "velodyne_points",
+    "base_2023-07-18-14-26-48_0_bag_1689715609165443992.npz",
+)
 
 
 def view_pointcloud_o3d(file_path):

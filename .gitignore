@@ -139,15 +139,15 @@ weights/
 .vscode
 
 # Citrus farm datasets
-datasets/citrus-farm-dataset/01_13B_Jackal
-datasets/citrus-farm-dataset/Calibration
-datasets/citrus-farm-dataset/ground_truth
-datasets/citrus-farm-dataset/extracted_rgbd
-datasets/citrus-farm-dataset/extracted_lidar
-datasets/citrus-farm-dataset/extracted_dense_lidar
-datasets/citrus-farm-dataset/prepared_training_dataset
-datasets/citrus-farm-dataset/prepared_training_dataset*
-datasets/citrus-farm-dataset/projection_alignment_audit
+citrus_project/dataset_workspace/01_13B_Jackal
+citrus_project/dataset_workspace/Calibration
+citrus_project/dataset_workspace/ground_truth
+citrus_project/dataset_workspace/extracted_rgbd
+citrus_project/dataset_workspace/extracted_lidar
+citrus_project/dataset_workspace/extracted_dense_lidar
+citrus_project/dataset_workspace/prepared_training_dataset
+citrus_project/dataset_workspace/prepared_training_dataset*
+citrus_project/dataset_workspace/projection_alignment_audit
 
 # Generated research/demo artifacts
-research/generated/
+citrus_project/research/generated/

@@ -10,6 +10,7 @@ from rosbags.highlevel import AnyReader
 # Strict topic filtering: extract only the LiDAR topic
 LIDAR_TOPIC = "/velodyne_points"
 ALLOWED_TOPICS = {LIDAR_TOPIC}
+SCRIPT_ROOT = Path(__file__).resolve().parent
 
 
 def decode_velodyne_pointcloud(msg):
@@ -105,19 +106,29 @@ def filter_rosbags(src_folder, prefixes_of_interest):
     return rosbags_of_interest
 
 
+def resolve_local_path(path_str):
+    path = Path(path_str)
+    if path.is_absolute():
+        return path
+    return SCRIPT_ROOT / path
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Extract LiDAR from rosbags.")
     parser.add_argument("src_folder", help="Source folder containing rosbags")
     parser.add_argument("output_folder", help="Output folder to save extracted data")
     args = parser.parse_args()
 
+    src_folder = resolve_local_path(args.src_folder)
+    output_folder = resolve_local_path(args.output_folder)
+
     # We only care about the files starting with 'base' (where the LiDAR is stored)
     rosbag_prefixes_of_interest = ["base"]
-    rosbags_to_process = filter_rosbags(args.src_folder, rosbag_prefixes_of_interest)
+    rosbags_to_process = filter_rosbags(str(src_folder), rosbag_prefixes_of_interest)
     rosbags_to_process.sort()
 
     if not rosbags_to_process:
-        print(f"No LiDAR bags found in {args.src_folder}")
+        print(f"No LiDAR bags found in {src_folder}")
         exit(1)
 
     print(f"Found {len(rosbags_to_process)} LiDAR bags to process.")
@@ -127,15 +138,15 @@ if __name__ == "__main__":
         
         # Skip check: if the first few files of this bag already exist, skip it.
         prefix = bag_name.replace(".", "_")
-        lidar_out_dir = os.path.join(args.output_folder, LIDAR_TOPIC.replace("/", "_").strip("_"))
+        lidar_out_dir = os.path.join(str(output_folder), LIDAR_TOPIC.replace("/", "_").strip("_"))
         if os.path.exists(lidar_out_dir):
             existing = [f for f in os.listdir(lidar_out_dir) if f.startswith(prefix)]
             if len(existing) > 50:
                 print(f"  Skipping (found {len(existing)} existing files).")
                 continue
 
-        bag_path = os.path.join(args.src_folder, bag_name)
+        bag_path = os.path.join(str(src_folder), bag_name)
         try:
-            extract_data_from_bag(bag_path, args.output_folder)
+            extract_data_from_bag(bag_path, str(output_folder))
         except Exception as e:
             print(f"  Error processing {bag_name}: {e}")

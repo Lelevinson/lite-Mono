@@ -67,13 +67,13 @@ At runtime, the robot still uses only RGB. The extra data types are for offline 
 
 Real extracted data:
 
-1. `datasets/citrus-farm-dataset/extracted_rgbd/zed2i_zed_node_left_image_rect_color/`
-2. `datasets/citrus-farm-dataset/extracted_rgbd/zed2i_zed_node_depth_depth_registered/`
-3. `datasets/citrus-farm-dataset/extracted_lidar/velodyne_points/`
+1. `citrus_project/dataset_workspace/extracted_rgbd/zed2i_zed_node_left_image_rect_color/`
+2. `citrus_project/dataset_workspace/extracted_rgbd/zed2i_zed_node_depth_depth_registered/`
+3. `citrus_project/dataset_workspace/extracted_lidar/velodyne_points/`
 
 Testing/diagnostic folders:
 
-1. `datasets/citrus-farm-dataset/projection_alignment_audit/`
+1. `citrus_project/dataset_workspace/projection_alignment_audit/`
 
 This testing folder helps us compare routes and inspect quality. It is not the final dataset.
 
@@ -121,8 +121,9 @@ Still left:
 
 Use this simple rule:
 
-1. `research/paper_shortlist.md` = the shortlist of results that may later go into the paper
-2. `research/dataset_notes.md` = evidence for dataset-building and label-quality decisions
-3. `research/baseline_notes.md` = evidence for original-model and baseline results
-4. `research/student_qna.md` = simple explanations for us, not paper evidence
+1. `citrus_project/research/paper_shortlist.md` = the shortlist of results that may later go into the paper
+2. `citrus_project/research/dataset_notes.md` = evidence for dataset-building and label-quality decisions
+3. `citrus_project/research/baseline_notes.md` = evidence for original-model and baseline results
+4. `citrus_project/research/student_qna.md` = simple explanations for us, not paper evidence
 5. `AGENTS.md` = project status, milestones, defaults, and decisions
+

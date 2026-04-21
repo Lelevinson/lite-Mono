@@ -3,9 +3,21 @@ import cv2
 import matplotlib.pyplot as plt
 import os
 
+SCRIPT_ROOT = os.path.dirname(os.path.abspath(__file__))
+
 # Put the exact filename of ONE of your extracted pairs here
-rgb_file = "extracted_rgbd/zed2i_zed_node_left_image_rect_color/zed_2023-07-18-14-26-49_0_bag_1689715609331936216.png"
-depth_file = "extracted_rgbd/zed2i_zed_node_depth_depth_registered/zed_2023-07-18-14-26-49_0_bag_1689715609131019192.npz"
+rgb_file = os.path.join(
+    SCRIPT_ROOT,
+    "extracted_rgbd",
+    "zed2i_zed_node_left_image_rect_color",
+    "zed_2023-07-18-14-26-49_0_bag_1689715609331936216.png",
+)
+depth_file = os.path.join(
+    SCRIPT_ROOT,
+    "extracted_rgbd",
+    "zed2i_zed_node_depth_depth_registered",
+    "zed_2023-07-18-14-26-49_0_bag_1689715609131019192.npz",
+)
 
 
 def verify_pair(rgb_path, depth_path):
