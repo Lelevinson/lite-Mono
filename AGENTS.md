@@ -409,6 +409,7 @@ Current communication stance:
 3. Keep paper-useful evidence, experiment summaries, and paper content candidates under citrus_project/research/.
 4. Keep bulky generated images/NPY artifacts under ignored citrus_project/research/generated/.
 5. Explain interpolation as a useful initial gap-filling method, not as perfect ground truth. Use "LiDAR-densified depth labels with valid masks" for paper-facing language.
+6. Keep project-scoped `.codex/` config local/ignored. It may contain MCP connector settings or API keys and should not be committed to the repository.
 
 Research workspace map:
 
@@ -696,6 +697,7 @@ One-image original Lite-Mono Citrus sanity run:
 - 2026-04-22: Added `citrus_project/milestones/` with per-milestone folders plus workspace README files so future milestone-specific work can live in one consistent place.
 - 2026-04-22: Updated the Citrus download/extract/verify helper scripts so relative paths resolve from `citrus_project/dataset_workspace/`, making the moved workspace less dependent on the caller's current working directory.
 - 2026-04-22: Added team-collaboration docs (`TEAM_WORKFLOW.md`, `TASK_BOARD.md`, `literature_tracker.md`, `scene_taxonomy.md`, and the Milestone 0 `sample_pack/` scaffold) so teammates and their AI assistants can stay aligned without needing the full dataset workspace.
+- 2026-04-23: Ignored the project-scoped `.codex/` folder and documented that it may contain local MCP configuration plus API secrets, so it should remain untracked.
 
 ## Update Template (Append On Future Changes)
 
