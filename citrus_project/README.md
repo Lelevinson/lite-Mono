@@ -9,6 +9,8 @@ The original Lite-Mono repository code remains at the repo root. Custom project 
 - `dataset_workspace/` - Citrus dataset download, extraction, audit, densification, and build scripts plus the local dataset workspace
 - `research/` - research notes, paper shortlist, beginner Q&A, and ignored generated artifacts
 - `milestones/` - milestone-specific folders for future implementation, experiments, notes, and outputs
+- `TEAM_WORKFLOW.md` - team onboarding and collaboration rules
+- `TASK_BOARD.md` - current owner/status/next-action board
 
 ## Working Rule
 

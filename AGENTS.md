@@ -50,6 +50,14 @@ The repository now has a deliberate split between upstream Lite-Mono code and pr
 5. `citrus_project/milestones/` is reserved for milestone-specific code, notes, helpers, and outputs as milestone work begins.
 6. `citrus_project/README.md` and `citrus_project/milestones/README.md` describe this custom workspace layout.
 
+Team collaboration files:
+
+1. `citrus_project/TEAM_WORKFLOW.md` is the collaboration/onboarding guide for teammates and their AI assistants.
+2. `citrus_project/TASK_BOARD.md` is the short current-work board with owners, status, and next actions.
+3. `citrus_project/research/literature_tracker.md` is the working file for model-improvement scouting and related-work intake.
+4. `citrus_project/research/scene_taxonomy.md` is the working file for scene categories, example selection, and qualitative-support notes.
+5. `citrus_project/milestones/00_dataset_audit/sample_pack/` is the low-storage collaboration area for a small shared sample pack.
+
 Research-note workflow for future chats:
 
 1. If a result is mainly evidence for dataset quality or label generation, write or update `citrus_project/research/dataset_notes.md`.
@@ -58,11 +66,27 @@ Research-note workflow for future chats:
 4. If the result changes project status, milestones, defaults, commands, or decisions, also update `AGENTS.md`.
 5. If the result answers a recurring beginner question, also update `citrus_project/research/student_qna.md`.
 
+Team-collaboration workflow for future chats:
+
+1. Tell teammates and their AI assistants to read `AGENTS.md`, then `citrus_project/TEAM_WORKFLOW.md`, then `citrus_project/TASK_BOARD.md`.
+2. Keep the active ownership list current in `citrus_project/TASK_BOARD.md`.
+3. Prefer low-overlap work division: one main integrator for fragile core code, bounded parallel work for research support.
+4. For low-storage collaborators, prefer `citrus_project/milestones/00_dataset_audit/sample_pack/` plus notes instead of requiring the full dataset workspace.
+5. When a teammate finishes meaningful work, update the task board and the relevant note file in the same turn if possible.
+
 Milestone workspace rule:
 
 1. If new code or notes belong clearly to one milestone, prefer placing them under the matching folder in `citrus_project/milestones/`.
 2. Keep cross-cutting dataset pipeline scripts in `citrus_project/dataset_workspace/`.
 3. Keep cross-cutting paper/support notes in `citrus_project/research/`.
+
+Current collaboration stance:
+
+1. The user is currently the main integrator for core Citrus pipeline and likely early baseline-code work.
+2. Teammates should avoid editing fragile shared pipeline/model code in parallel unless explicitly coordinated.
+3. Friend A is a good fit for literature scouting, improvement-idea ranking, and related-work intake.
+4. Friend B is a good fit for scene taxonomy, example selection, figure support, and paper/dataset communication support.
+5. The collaboration setup should reduce merge chaos, not create parallel overlapping implementations.
 
 ## User Collaboration Preference
 
@@ -371,6 +395,8 @@ Paper/research notes:
 3. citrus_project/research/paper_shortlist.md
 4. citrus_project/research/dataset_notes.md
 5. citrus_project/research/baseline_notes.md
+6. citrus_project/research/literature_tracker.md
+7. citrus_project/research/scene_taxonomy.md
 
 Generated local research artifacts:
 
@@ -390,7 +416,15 @@ Research workspace map:
 2. `citrus_project/research/dataset_notes.md` = evidence and decisions about dataset building, alignment, and label quality.
 3. `citrus_project/research/baseline_notes.md` = evidence and notes about original-model and baseline runs.
 4. `citrus_project/research/student_qna.md` = simple recurring explanations for students/team members.
-5. `citrus_project/research/generated/` = ignored local outputs such as images, NPY files, and quick demo artifacts.
+5. `citrus_project/research/literature_tracker.md` = Friend A working file for paper reading and idea scouting.
+6. `citrus_project/research/scene_taxonomy.md` = Friend B working file for scene categories and qualitative-support preparation.
+7. `citrus_project/research/generated/` = ignored local outputs such as images, NPY files, and quick demo artifacts.
+
+Team workspace map:
+
+1. `citrus_project/TEAM_WORKFLOW.md` = teammate and AI onboarding guide plus edit-boundary rules.
+2. `citrus_project/TASK_BOARD.md` = short owner/status/next-action board.
+3. `citrus_project/milestones/00_dataset_audit/sample_pack/` = small shared sample area for low-storage collaborators.
 
 ## Core Tunables
 
@@ -661,6 +695,7 @@ One-image original Lite-Mono Citrus sanity run:
 - 2026-04-22: Moved the project-owned Citrus dataset workspace and research notes under `citrus_project/`, separating them more clearly from the original Lite-Mono code at repo root.
 - 2026-04-22: Added `citrus_project/milestones/` with per-milestone folders plus workspace README files so future milestone-specific work can live in one consistent place.
 - 2026-04-22: Updated the Citrus download/extract/verify helper scripts so relative paths resolve from `citrus_project/dataset_workspace/`, making the moved workspace less dependent on the caller's current working directory.
+- 2026-04-22: Added team-collaboration docs (`TEAM_WORKFLOW.md`, `TASK_BOARD.md`, `literature_tracker.md`, `scene_taxonomy.md`, and the Milestone 0 `sample_pack/` scaffold) so teammates and their AI assistants can stay aligned without needing the full dataset workspace.
 
 ## Update Template (Append On Future Changes)
 
