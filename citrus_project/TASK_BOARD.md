@@ -1,12 +1,12 @@
 # Task Board
 
-Date: 2026-04-22
+Date: 2026-04-23
 
 ## Current Project Position
 
-- Milestone 0 is logically completed from the audit/decision side.
-- The next big execution step is the full dataset build.
-- After that, the next major task is the original Lite-Mono baseline evaluation on Citrus.
+- Milestone 0 is complete through the full dataset build.
+- The next major task is the original Lite-Mono baseline evaluation on Citrus.
+- A small curated sample pack is still needed for Friend B's deeper work.
 
 ## Ownership
 
@@ -15,14 +15,14 @@ Date: 2026-04-22
 Current focus:
 
 1. maintain the core Citrus pipeline and repo-wide integration
-2. run the full `build_training_dataset.py` step
-3. prepare the path into the true Milestone 1 baseline evaluation
+2. run the original Lite-Mono baseline on the built Citrus split
+3. prepare the path into the true Milestone 1 evaluation/metric workflow
 
 Near-term outputs:
 
-- final built dataset artifacts
-- final sample counts and split counts
 - baseline evaluation setup
+- first baseline metrics/results
+- runtime and failure-case notes
 
 ### Friend A
 
@@ -62,12 +62,12 @@ Expected near-term output:
 ## Blocked / Waiting
 
 1. Friend B’s deeper work depends on a small curated sample pack being prepared.
-2. Baseline evaluation depends on the full dataset build being run.
+2. Baseline evaluation still depends on deciding the Citrus-side inference/evaluation entry point in the Lite-Mono codebase.
 
 ## Next Review Point
 
 After:
 
 1. the sample pack scaffold is ready for sharing
-2. the full dataset build is complete or attempted
+2. the first baseline evaluation attempt is complete
 3. Friend A has an initial idea shortlist

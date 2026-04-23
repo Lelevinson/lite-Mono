@@ -3,7 +3,7 @@
 ## Purpose
 
 This file is the shared project context for the Lite-Mono + Citrus Farm research project.
-The project is not only a dataset-preparation task: the end goal is a publishable research paper on improving lightweight monocular depth estimation for vegetation-dense citrus/orchard environments, with a pest-killing robot deployment motivation.
+The project is not only a dataset-preparation task: the end goal is a publishable research paper on improving lightweight monocular depth estimation for vegetation-dense agricultural environments, with Citrus Farm used as the current main benchmark/domain and a pest-killing robot deployment motivation.
 All new chats should read this file first.
 
 ## Mandatory Context Workflow
@@ -57,14 +57,16 @@ Team collaboration files:
 3. `citrus_project/research/literature_tracker.md` is the working file for model-improvement scouting and related-work intake.
 4. `citrus_project/research/scene_taxonomy.md` is the working file for scene categories, example selection, and qualitative-support notes.
 5. `citrus_project/milestones/00_dataset_audit/sample_pack/` is the low-storage collaboration area for a small shared sample pack.
+6. `citrus_project/research/advisor_notes.md` stores professor/advisor questions, recommendations, and later follow-up directions.
 
 Research-note workflow for future chats:
 
 1. If a result is mainly evidence for dataset quality or label generation, write or update `citrus_project/research/dataset_notes.md`.
 2. If a result is mainly evidence for model behavior or comparison, write or update `citrus_project/research/baseline_notes.md`.
 3. If a result might later appear in the paper, add or refresh a short entry in `citrus_project/research/paper_shortlist.md`.
-4. If the result changes project status, milestones, defaults, commands, or decisions, also update `AGENTS.md`.
-5. If the result answers a recurring beginner question, also update `citrus_project/research/student_qna.md`.
+4. If a professor/advisor question or recommendation should be tracked for later, add it to `citrus_project/research/advisor_notes.md`.
+5. If the result changes project status, milestones, defaults, commands, or decisions, also update `AGENTS.md`.
+6. If the result answers a recurring beginner question, also update `citrus_project/research/student_qna.md`.
 
 Team-collaboration workflow for future chats:
 
@@ -100,15 +102,16 @@ When the user is talking about the codebase, be careful and verify details befor
 
 ## Project Goal
 
-Publish an improved Lite-Mono-style monocular depth estimation method for vegetation-dense agricultural environments, especially citrus/orchard robot navigation for a lightweight RGB-only pest-killing robot perception stack.
+Publish an improved Lite-Mono-style monocular depth estimation method for vegetation-dense agricultural environments, validated first on Citrus Farm and motivated by a lightweight RGB-only pest-killing robot perception stack.
 
 Research objective:
 
 1. Use original Lite-Mono as the lightweight monocular depth baseline.
-2. Show and measure the domain gap between urban/KITTI-style Lite-Mono behavior and citrus/orchard scenes.
-3. Build a reliable Citrus Farm RGB + depth-label evaluation/training pipeline.
+2. Show and measure the domain gap between urban/KITTI-style Lite-Mono behavior and vegetation-dense agricultural scenes, using Citrus Farm as the first main benchmark.
+3. Build a reliable Citrus Farm RGB + depth-label evaluation/training pipeline as the first validated domain-specific pipeline.
 4. Improve Lite-Mono or its training objective for dense vegetation while keeping runtime inference monocular RGB-only and lightweight.
 5. Compare original Lite-Mono, Citrus-adapted Lite-Mono, and the proposed improved variant under the same Citrus data budget and splits.
+6. Frame Citrus Farm as the current validation domain, not the only intended deployment domain; other agricultural users should be able to adapt the approach with their own RGB sequences and optional depth-label pipeline through fine-tuning or retraining.
 
 Dataset-preparation objective:
 
@@ -145,6 +148,7 @@ How our pipeline relates to author intent:
 3. Extracting `/zed2i/zed_node/left/image_rect_color`, `/zed2i/zed_node/depth/depth_registered`, and `/velodyne_points` is consistent with the official topic list.
 4. Saving RGB as PNG and arrays as NPZ differs from the official bag2files.py output format, but it is reasonable for lossless ML preprocessing.
 5. Projecting and densifying LiDAR into ZED image space is our own derived-label pipeline. It must be validated; it should not be assumed to be an official Citrus Farm ground-truth product.
+6. Citrus Farm is being used because it is a strong available multimodal agricultural dataset for this research stage, not because the intended method should only work in citrus orchards.
 
 ## Canonical Script Order
 
@@ -304,9 +308,7 @@ Legacy linear metrics probe result (2026-04-15):
 4. Final/default dense-label transform is now `exact_lidar_parent_child_inverted`.
 5. `production_current` remains available as an alternate comparison route via `--transform_mode production_current`.
 6. One-sample smoke build verified that build_training_dataset.py now uses `exact_lidar_parent_child_inverted` by default; the throwaway output folder was removed after validation.
-7. Full prepared dataset build has not been run in this cleanup commit because it is a large local artifact step. Next build command:
-   - `D:/Conda_Envs/lite-mono/python.exe build_training_dataset.py`
-8. Research note:
+7. Research note:
    - `citrus_project/research/dataset_notes.md`
 
 ## Original Lite-Mono Citrus Sanity Run (2026-04-16)
@@ -335,8 +337,11 @@ Observed after recent local script/data changes:
 4. Unique extracted bag prefixes currently indicate expected ratio:
    - zed prefixes: 21
    - base prefixes: 1
-5. Current local workspace does not currently contain extracted_dense_lidar/ or prepared_training_dataset/ outputs (needs rerun if required for next stage).
-6. build_training_dataset.py now includes parallel processing and optimized timestamp pairing (find_closest_optimized) for faster conversion runs.
+5. Full prepared dataset output now exists under `citrus_project/dataset_workspace/prepared_training_dataset/` with:
+   - 5282 dense LiDAR labels
+   - 5282 valid masks
+   - split files and metrics summary
+6. build_training_dataset.py includes parallel processing and optimized timestamp pairing (find_closest_optimized) for faster conversion runs.
 
 ## Important Pairing Rule
 
@@ -380,6 +385,40 @@ Depth-label storage versus visualization:
    - `projection_alignment_audit/details_exact_lidar_parent_child_inverted/`
      These detail folders provide human-facing dense-label visuals for both candidate routes.
 
+## Full prepared dataset build (2026-04-23)
+
+1. Ran the full dataset builder successfully from `citrus_project/dataset_workspace/`:
+   - `D:/Conda_Envs/lite-mono/python.exe build_training_dataset.py --workers 10`
+2. Output directory used by the current defaults:
+   - `citrus_project/dataset_workspace/prepared_training_dataset/`
+3. Effective build defaults:
+   - `transform_mode=exact_lidar_parent_child_inverted`
+   - `interpolation_method=local_idw`
+   - `split_strategy=time_block`
+   - `enable_zed_depth_metrics=true`
+4. Build summary:
+   - paired samples: 5282
+   - total built samples: 5282
+   - train: 4311
+   - val: 564
+   - test: 407
+   - total time-block groups: 28
+   - split groups: train=22, val=2, test=4
+5. Dense artifacts created:
+   - `dense_lidar_npz/`: 5282 files
+   - `dense_lidar_valid_mask_npz/`: 5282 files
+   - `metrics/all_samples.csv`
+   - `metrics/summary.json`
+   - `splits/train_pairs.txt`
+   - `splits/val_pairs.txt`
+   - `splits/test_pairs.txt`
+6. Runtime note:
+   - the worker-processing stage completed in about 657.71 seconds with 10 workers on the user's current machine
+   - this build path is CPU-parallel, not GPU-accelerated
+7. Environment note:
+   - an initial sandboxed run failed on Windows when `ProcessPoolExecutor` tried to spawn worker processes (`WinError 5: Access is denied`)
+   - the same command succeeded when rerun outside the sandbox, so treat that as an execution-environment constraint rather than a dataset-script logic failure
+
 Alternate transform comparison:
 
 1. `exact_lidar_parent_child_inverted` is now the default/final transform and writes to `prepared_training_dataset/` when no explicit `--output_dir` is provided.
@@ -397,6 +436,7 @@ Paper/research notes:
 5. citrus_project/research/baseline_notes.md
 6. citrus_project/research/literature_tracker.md
 7. citrus_project/research/scene_taxonomy.md
+8. citrus_project/research/advisor_notes.md
 
 Generated local research artifacts:
 
@@ -410,6 +450,7 @@ Current communication stance:
 4. Keep bulky generated images/NPY artifacts under ignored citrus_project/research/generated/.
 5. Explain interpolation as a useful initial gap-filling method, not as perfect ground truth. Use "LiDAR-densified depth labels with valid masks" for paper-facing language.
 6. Keep project-scoped `.codex/` config local/ignored. It may contain MCP connector settings or API keys and should not be committed to the repository.
+7. Frame the paper and notes carefully: Citrus Farm is the current benchmark and validation dataset, while the broader intended contribution is lightweight monocular depth estimation for vegetation-dense agricultural environments that can later be adapted to other farms with domain-specific data and fine-tuning/retraining.
 
 Research workspace map:
 
@@ -419,7 +460,8 @@ Research workspace map:
 4. `citrus_project/research/student_qna.md` = simple recurring explanations for students/team members.
 5. `citrus_project/research/literature_tracker.md` = Friend A working file for paper reading and idea scouting.
 6. `citrus_project/research/scene_taxonomy.md` = Friend B working file for scene categories and qualitative-support preparation.
-7. `citrus_project/research/generated/` = ignored local outputs such as images, NPY files, and quick demo artifacts.
+7. `citrus_project/research/advisor_notes.md` = professor/advisor questions, recommendations, and follow-up ideas.
+8. `citrus_project/research/generated/` = ignored local outputs such as images, NPY files, and quick demo artifacts.
 
 Team workspace map:
 
@@ -515,11 +557,12 @@ Before declaring dataset ready:
 
 Working paper direction:
 
-1. Target contribution should be framed as lightweight monocular depth estimation for vegetation-dense citrus/orchard environments, not as a broad global SOTA monocular depth claim.
+1. Target contribution should be framed as lightweight monocular depth estimation for vegetation-dense agricultural environments, validated first on Citrus Farm, not as a broad global SOTA monocular depth claim.
 2. Lite-Mono remains the main efficiency baseline because it is a compact CVPR 2023 self-supervised monocular depth model originally validated mostly around urban/KITTI-style driving data.
 3. The research gap is domain shift: vegetation, repetitive canopy texture, thin branches/leaves, partial occlusion, non-planar ground, lighting variation, and robot-scale agricultural navigation needs.
 4. Runtime requirement remains RGB-only monocular inference for a pest-killing robot; LiDAR and ZED depth are offline training/evaluation assets only.
 5. Paper-facing terminology should prefer "LiDAR-densified depth labels" or "dense LiDAR depth labels"; legacy project notes may still refer to the "densed lidar dataset" for continuity.
+6. Advisor-suggested side questions, such as frame-motion sensitivity during self-supervised training, are worth tracking as later analysis candidates, but should not displace the current main milestone path unless later evidence or advisor feedback says otherwise.
 
 ## Codebase Review Snapshot (2026-04-15)
 
@@ -527,7 +570,7 @@ Observed from current repository review:
 
 1. Citrus data preparation is mostly separate from the original Lite-Mono training stack.
 2. trainer.py and evaluate_depth.py are still KITTI-centered; no Citrus Dataset class, Citrus evaluation script, or supervised/hybrid depth loss is wired into training yet.
-3. Current prepared_training_dataset/ output is absent locally; a fresh full builder run is required before training/evaluation milestones depend on it.
+3. Current `prepared_training_dataset/` output now exists locally with 5282 samples, so baseline evaluation and later Citrus integration can depend on a real built split instead of only audit/probe artifacts.
 4. build_training_dataset.py now rebuilds manifest rows when dense files already exist and can force-regenerate dense outputs with `--no_skip_existing`.
 5. Current builder default uses time-block grouped splitting; paper experiments should still confirm the split does not leak near-duplicate frames across train/val/test.
 6. Densification quality must be treated as a first-class validation target before supervised/hybrid training, especially calibration correctness, support masks, fill ratio, and visual projection alignment.
@@ -588,18 +631,19 @@ Done:
 5. Ran small visual audits plus a 200-sample time-spread metrics probe.
 6. Locked `exact_lidar_parent_child_inverted` as the final/default dense-label route.
 7. Ran one original Lite-Mono qualitative sanity prediction on a Citrus RGB image.
+8. Ran the full `prepared_training_dataset/` build and produced 5282 dense labels plus train/val/test split manifests.
 
 Current:
 
-1. Milestone 0 is logically complete from an audit/decision perspective, but the full `prepared_training_dataset/` build has not been run yet as a large local artifact step.
-2. Milestone 1 has only started as a qualitative demo; full baseline evaluation on Citrus splits is still pending.
-3. We now need cleaner, reusable research communication notes for both paper-facing evidence and beginner-facing explanations.
+1. Milestone 0 is now complete through the full dataset build, with the final/default route and split policy materialized under `prepared_training_dataset/`.
+2. Milestone 1 has only started as a qualitative demo; full baseline evaluation on Citrus validation/test splits is still pending.
+3. We now need baseline evaluation code/results plus a small shared sample pack for teammate support work.
 
 Next:
 
-1. Run the full `build_training_dataset.py` build with the final/default route.
-2. Record final sample counts plus train/val/test split counts for paper use.
-3. Run original Lite-Mono on the built Citrus validation/test split and evaluate against dense labels with valid masks.
+1. Run original Lite-Mono on the built Citrus validation/test split and evaluate against dense labels with valid masks.
+2. Record baseline metrics, runtime, parameter count, and failure cases for Milestone 1.
+3. Prepare and share a small curated sample pack for Friend B's scene-taxonomy and qualitative-support work.
 
 Later:
 
@@ -698,6 +742,9 @@ One-image original Lite-Mono Citrus sanity run:
 - 2026-04-22: Updated the Citrus download/extract/verify helper scripts so relative paths resolve from `citrus_project/dataset_workspace/`, making the moved workspace less dependent on the caller's current working directory.
 - 2026-04-22: Added team-collaboration docs (`TEAM_WORKFLOW.md`, `TASK_BOARD.md`, `literature_tracker.md`, `scene_taxonomy.md`, and the Milestone 0 `sample_pack/` scaffold) so teammates and their AI assistants can stay aligned without needing the full dataset workspace.
 - 2026-04-23: Ignored the project-scoped `.codex/` folder and documented that it may contain local MCP configuration plus API secrets, so it should remain untracked.
+- 2026-04-23: Reframed the project goal more carefully as lightweight monocular depth for vegetation-dense agricultural environments, using Citrus Farm as the current benchmark/validation dataset rather than the only intended deployment domain.
+- 2026-04-23: Ran the full `build_training_dataset.py` build with `exact_lidar_parent_child_inverted` and `local_idw`, producing `prepared_training_dataset/` with 5282 samples, 5282 valid masks, and time-block splits of train=4311, val=564, test=407.
+- 2026-04-23: Added `citrus_project/research/advisor_notes.md` to track professor/advisor questions and recommendations, including the current later-stage motion-sensitivity side-question and the suggestion to check whether speed-detection literature has any useful connection.
 
 ## Update Template (Append On Future Changes)
 

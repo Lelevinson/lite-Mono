@@ -125,11 +125,48 @@ Implemented and decided:
 - final/default route: `exact_lidar_parent_child_inverted`
 - alternate route kept available: `production_current`
 - default dense-label interpolation: `local_idw`
+- full prepared dataset build completed on 2026-04-23
 
-Still pending:
+## Full prepared dataset build
 
-- full `build_training_dataset.py` run
-- final built-sample counts
-- final train/val/test counts
-- any final parameter lock after the full build
+Date: 2026-04-23
+
+Command:
+
+```powershell
+D:/Conda_Envs/lite-mono/python.exe build_training_dataset.py --workers 10
+```
+
+Output folder:
+
+- `citrus_project/dataset_workspace/prepared_training_dataset/`
+
+Effective defaults used:
+
+- transform mode: `exact_lidar_parent_child_inverted`
+- interpolation: `local_idw`
+- split strategy: `time_block`
+- ZED depth metrics: enabled
+
+Result:
+
+| Item | Value |
+|---|---:|
+| Built samples | 5282 |
+| Train | 4311 |
+| Val | 564 |
+| Test | 407 |
+| Dense label files | 5282 |
+| Valid mask files | 5282 |
+| Time-block groups total | 28 |
+
+Runtime note:
+
+- worker-processing stage completed in about 657.71 seconds with 10 workers on the user's current machine
+- the build script is CPU-parallel, not GPU-accelerated
+
+Interpretation:
+
+- the project now has a real prepared dataset, not only audit outputs and probe summaries
+- Milestone 0 is complete enough to support true Milestone 1 baseline evaluation
 

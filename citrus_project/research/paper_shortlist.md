@@ -26,7 +26,30 @@ Paper section fit:
 Current status:
 
 - Locked as the final/default dense-label route: `exact_lidar_parent_child_inverted`.
-- Full prepared dataset build is still a heavy local artifact step and has not been run in the cleanup commit.
+- Full prepared dataset build is now complete with 5282 samples and time-block splits of train=4311, val=564, test=407.
+
+### Final Prepared Dataset Version
+
+Evidence notes:
+
+- `citrus_project/research/dataset_notes.md`
+- `citrus_project/dataset_workspace/prepared_training_dataset/metrics/summary.json`
+
+Why it matters:
+
+- Gives the paper a concrete dataset version and split counts instead of only planned counts.
+- Supports the reproducibility story around label generation, split policy, and evaluation setup.
+
+Paper section fit:
+
+- Dataset construction
+- Experimental setup
+- Reproducibility details
+
+Current status:
+
+- Built successfully on 2026-04-23.
+- Ready to support Milestone 1 baseline evaluation.
 
 ### Conservative Dense Label Generation
 

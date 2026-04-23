@@ -21,6 +21,7 @@ Current tracked notes include:
 - `paper_shortlist.md` for likely paper material
 - `literature_tracker.md` for related-work intake and improvement ideas
 - `scene_taxonomy.md` for scene categories and example selection
+- `advisor_notes.md` for professor/advisor questions and recommendations
 
 Quick structure:
 
@@ -29,6 +30,7 @@ Quick structure:
 - `baseline_notes.md` = baseline/model experiment notes
 - `literature_tracker.md` = model-improvement and related-work tracker
 - `scene_taxonomy.md` = scene categories and qualitative-support tracker
+- `advisor_notes.md` = professor/advisor questions, recommendations, and follow-up ideas
 - `student_qna.md` = simple recurring explanations for students
 - `generated/` = ignored local outputs only
 
