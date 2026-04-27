@@ -11,8 +11,7 @@ Current status:
 - This is the active next milestone.
 - A one-image Lite-Mono sanity demo already exists, but full baseline evaluation has not been completed yet.
 - The Citrus evaluator entry point has started as `evaluate_lite_mono_citrus.py`.
-- Current evaluator slice: data inspection only.
-- Model inference is the next evaluator slice.
+- Current evaluator slice: data inspection plus optional one-image/limited-sample model inference.
 - Valid-mask-aware metric computation is not implemented yet.
 
 Main input dataset:
@@ -33,12 +32,17 @@ Current helper commands:
 D:/Conda_Envs/lite-mono/python.exe citrus_project/milestones/01_original_lite_mono_baseline/evaluate_lite_mono_citrus.py --split val --max_samples 3
 ```
 
+```powershell
+D:/Conda_Envs/lite-mono/python.exe citrus_project/milestones/01_original_lite_mono_baseline/evaluate_lite_mono_citrus.py --split val --max_samples 1 --run_model --no_cuda
+```
+
 Current helper behavior:
 
 - reads the prepared split file
 - joins split entries with `metrics/all_samples.csv`
 - checks RGB, dense LiDAR label, and valid-mask paths
 - prints image size, array shapes, value summaries, valid-pixel count, and pairing diagnostics
+- with `--run_model`, loads `weights/lite-mono`, runs the original model, and prints input tensor, raw closeness level, scaled disparity, predicted depth, and resized depth summaries
 
 Main record files:
 

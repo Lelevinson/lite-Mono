@@ -1,10 +1,22 @@
 import argparse
 import csv
+import sys
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Callable, Dict, List, NamedTuple, Optional, Tuple
 
 import numpy as np
 from PIL import Image
+
+
+class LiteMonoModel(NamedTuple):
+    encoder: object
+    depth_decoder: object
+    disp_to_depth: Callable
+    device: object
+    feed_height: int
+    feed_width: int
+    min_depth: float
+    max_depth: float
 
 
 def repo_root() -> Path:
@@ -64,12 +76,141 @@ def format_stats(stats: Dict[str, object]) -> str:
     )
 
 
+def ensure_repo_imports(root: Path) -> None:
+    root_str = str(root)
+    if root_str not in sys.path:
+        sys.path.insert(0, root_str)
+
+
+def load_lite_mono_model(
+    weights_folder: Path,
+    model_name: str,
+    no_cuda: bool,
+    min_depth: float,
+    max_depth: float,
+) -> LiteMonoModel:
+    import torch
+
+    root = repo_root()
+    ensure_repo_imports(root)
+
+    import networks
+    from layers import disp_to_depth
+
+    device = torch.device("cuda" if torch.cuda.is_available() and not no_cuda else "cpu")
+    encoder_path = weights_folder / "encoder.pth"
+    decoder_path = weights_folder / "depth.pth"
+
+    encoder_dict = torch.load(encoder_path, map_location=device)
+    decoder_dict = torch.load(decoder_path, map_location=device)
+    feed_height = int(encoder_dict["height"])
+    feed_width = int(encoder_dict["width"])
+
+    encoder = networks.LiteMono(model=model_name, height=feed_height, width=feed_width)
+    encoder.load_state_dict(
+        {key: value for key, value in encoder_dict.items() if key in encoder.state_dict()}
+    )
+    encoder.to(device)
+    encoder.eval()
+
+    depth_decoder = networks.DepthDecoder(encoder.num_ch_enc, scales=range(3))
+    depth_decoder.load_state_dict(
+        {
+            key: value
+            for key, value in decoder_dict.items()
+            if key in depth_decoder.state_dict()
+        }
+    )
+    depth_decoder.to(device)
+    depth_decoder.eval()
+
+    return LiteMonoModel(
+        encoder=encoder,
+        depth_decoder=depth_decoder,
+        disp_to_depth=disp_to_depth,
+        device=device,
+        feed_height=feed_height,
+        feed_width=feed_width,
+        min_depth=min_depth,
+        max_depth=max_depth,
+    )
+
+
+def image_to_input_tensor(image: Image.Image, model: LiteMonoModel):
+    import torch
+    from torchvision import transforms
+
+    resized = image.resize((model.feed_width, model.feed_height), Image.LANCZOS)
+    tensor = transforms.ToTensor()(resized).unsqueeze(0)
+    return tensor.to(model.device)
+
+
+def run_lite_mono_inference(rgb_path: Path, label_shape: Tuple[int, int], model: LiteMonoModel) -> None:
+    import torch
+    import torch.nn.functional as F
+
+    with Image.open(rgb_path) as image:
+        input_image = image.convert("RGB")
+        original_width, original_height = input_image.size
+        input_tensor = image_to_input_tensor(input_image, model)
+
+    with torch.no_grad():
+        features = model.encoder(input_tensor)
+        outputs = model.depth_decoder(features)
+        raw_disp = outputs[("disp", 0)]
+        scaled_disp, depth = model.disp_to_depth(
+            raw_disp, model.min_depth, model.max_depth
+        )
+        depth_resized = F.interpolate(
+            depth,
+            size=label_shape,
+            mode="bilinear",
+            align_corners=False,
+        )
+
+    raw_disp_np = raw_disp.detach().cpu().numpy()
+    scaled_disp_np = scaled_disp.detach().cpu().numpy()
+    depth_np = depth.detach().cpu().numpy()
+    depth_resized_np = depth_resized.detach().cpu().numpy()
+
+    print("  Model inference:")
+    print(
+        "    Input tensor: "
+        f"shape={tuple(input_tensor.shape)}, "
+        f"dtype={input_tensor.dtype}, "
+        f"device={input_tensor.device}, "
+        f"range={float(input_tensor.min()):.6f}..{float(input_tensor.max()):.6f}"
+    )
+    print(
+        "    Original RGB size: "
+        f"width={original_width}, height={original_height}; "
+        f"model feed size: width={model.feed_width}, height={model.feed_height}"
+    )
+    print(
+        "    Raw closeness level: "
+        f"shape={tuple(raw_disp.shape)}, {format_stats(finite_stats(raw_disp_np))}"
+    )
+    print(
+        "    Scaled disparity:   "
+        f"shape={tuple(scaled_disp.shape)}, {format_stats(finite_stats(scaled_disp_np))}"
+    )
+    print(
+        "    Predicted depth:    "
+        f"shape={tuple(depth.shape)}, {format_stats(finite_stats(depth_np))}"
+    )
+    print(
+        "    Resized depth:      "
+        f"shape={tuple(depth_resized.shape)}, {format_stats(finite_stats(depth_resized_np))}"
+    )
+
+
 def inspect_sample(
     index: int,
     rgb_rel: str,
     dense_rel: str,
     manifest: Dict[str, Dict[str, str]],
     workspace_dir: Path,
+    model: Optional[LiteMonoModel],
 ) -> None:
     if rgb_rel not in manifest:
         raise KeyError(f"{rgb_rel} is present in split file but missing from all_samples.csv")
@@ -112,6 +253,8 @@ def inspect_sample(
     )
     print(f"  Pair delta ms: {row.get('time_delta_ms', 'n/a')}")
     print(f"  Dense fill ratio from manifest: {row.get('dense_fill_ratio', 'n/a')}")
+    if model is not None:
+        run_lite_mono_inference(rgb_path, dense.shape, model)
 
 
 def parse_args() -> argparse.Namespace:
@@ -142,6 +285,40 @@ def parse_args() -> argparse.Namespace:
         default=3,
         help="Number of samples to inspect from the selected split.",
     )
+    parser.add_argument(
+        "--run_model",
+        action="store_true",
+        help="Also run original Lite-Mono inference for the selected samples.",
+    )
+    parser.add_argument(
+        "--weights_folder",
+        type=Path,
+        default=repo_root() / "weights" / "lite-mono",
+        help="Folder containing encoder.pth and depth.pth.",
+    )
+    parser.add_argument(
+        "--model",
+        default="lite-mono",
+        choices=["lite-mono", "lite-mono-small", "lite-mono-tiny", "lite-mono-8m"],
+        help="Lite-Mono model variant that matches the weights.",
+    )
+    parser.add_argument(
+        "--no_cuda",
+        action="store_true",
+        help="Force CPU inference even if CUDA is available.",
+    )
+    parser.add_argument(
+        "--min_depth",
+        type=float,
+        default=0.1,
+        help="Minimum depth used by Lite-Mono disp_to_depth conversion.",
+    )
+    parser.add_argument(
+        "--max_depth",
+        type=float,
+        default=100.0,
+        help="Maximum depth used by Lite-Mono disp_to_depth conversion.",
+    )
     return parser.parse_args()
 
 
@@ -156,6 +333,16 @@ def main() -> None:
     pairs = load_split_pairs(split_path)
     selected_pairs = pairs[: args.max_samples]
 
+    model = None
+    if args.run_model:
+        model = load_lite_mono_model(
+            weights_folder=args.weights_folder.resolve(),
+            model_name=args.model,
+            no_cuda=args.no_cuda,
+            min_depth=args.min_depth,
+            max_depth=args.max_depth,
+        )
+
     print("Citrus Lite-Mono baseline evaluator")
     print(f"  Dataset workspace: {workspace_dir}")
     print(f"  Prepared dataset:  {prepared_dir}")
@@ -163,9 +350,16 @@ def main() -> None:
     print(f"  Split samples:     {len(pairs)}")
     print(f"  Inspecting:        {len(selected_pairs)}")
     print(f"  Manifest rows:     {len(manifest)}")
+    print(f"  Model inference:   {'enabled' if model is not None else 'disabled'}")
+    if model is not None:
+        print(f"  Weights folder:    {args.weights_folder.resolve()}")
+        print(f"  Model variant:     {args.model}")
+        print(f"  Device:            {model.device}")
+        print(f"  Feed size:         width={model.feed_width}, height={model.feed_height}")
+        print(f"  Depth range:       {model.min_depth}..{model.max_depth} m")
 
     for index, (rgb_rel, dense_rel) in enumerate(selected_pairs, start=1):
-        inspect_sample(index, rgb_rel, dense_rel, manifest, workspace_dir)
+        inspect_sample(index, rgb_rel, dense_rel, manifest, workspace_dir, model)
 
 
 if __name__ == "__main__":
