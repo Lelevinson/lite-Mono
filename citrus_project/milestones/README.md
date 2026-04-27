@@ -6,12 +6,17 @@ Use them to keep new code, experiment helpers, notes, plots, and milestone-scope
 
 ## Folder Map
 
-- `00_dataset_audit/` - dataset construction, calibration checks, label-route validation
-- `01_original_lite_mono_baseline/` - original Lite-Mono baseline runs and evaluation helpers
+- `00_dataset_audit/` - dataset construction, calibration checks, label-route validation (complete through full dataset build)
+- `01_original_lite_mono_baseline/` - original Lite-Mono baseline runs and evaluation helpers (current active next milestone)
 - `02_citrus_integration/` - Citrus Dataset/DataLoader and evaluation integration
 - `03_self_supervised_adaptation/` - self-supervised Citrus fine-tuning/adaptation work
 - `04_lightweight_vegetation_improvement/` - lightweight vegetation-focused model/loss improvements
 - `05_optional_supervised_or_hybrid/` - optional supervised or hybrid training additions
 - `06_paper_package/` - paper tables, figures, writing support, and final packaging
 
-The current repo does not need milestone code in these folders yet, but they are the intended home once each milestone begins.
+Current milestone state:
+
+- Milestone 0 is complete through the full dataset build.
+- Milestone 1 is the current active next step.
+
+These folders are the intended home for milestone-specific code, notes, helpers, and outputs as each stage becomes active.

@@ -155,6 +155,8 @@ citrus_project/research/generated/
 # Local Codex project config / MCP secrets
 .codex/
 
-# gitignorebaru
-
+# Marvel's gitignore
 citrus-farm-dataset
+
+# Paper
+lite-mono-paper.pdf

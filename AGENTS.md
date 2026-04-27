@@ -99,6 +99,18 @@ When the user is talking about the codebase, be careful and verify details befor
 3. If something is only a guess, say clearly that it is a guess.
 4. For ideas, brainstorming, or non-code discussion, it is okay to propose possibilities as long as assumptions are clearly labeled.
 5. Do not treat legacy or sidecar files as important to the active workflow unless that relevance is confirmed from the repository or current project notes.
+6. When explaining AI/PyTorch/image-processing concepts to the user, prefer concrete mental hooks over broad definitions:
+   - say what a value represents in plain words, such as "per-pixel closeness level," before giving formulas
+   - explain why an intermediate value exists, not only its shape or file format
+   - connect each value to the exact project artifact or code step it affects
+   - use small numeric examples when a value is not intuitive
+   - proactively explain nearby terms that are likely to confuse a beginner, instead of waiting for a perfect follow-up question
+7. For deep AI/model-algorithm work, use an active mutual-understanding workflow:
+   - ask the user frequent concept-check questions about the mathematical idea, tensor operation, and code mapping before rushing into implementation
+   - expect the user's first mental model to be incomplete or wrong, and treat that as the normal teaching/debugging path
+   - correct misunderstandings gently but explicitly with concrete examples from this repository
+   - invite the user to challenge the assistant's interpretation too, because the assistant may also misread code or context
+   - do not move past core concepts such as loss, disparity/depth conversion, pose, masks, scaling, tensor shapes, and metrics until both the formula-level and code-level meaning are clear enough to explain back
 
 ## Project Goal
 
@@ -745,6 +757,9 @@ One-image original Lite-Mono Citrus sanity run:
 - 2026-04-23: Reframed the project goal more carefully as lightweight monocular depth for vegetation-dense agricultural environments, using Citrus Farm as the current benchmark/validation dataset rather than the only intended deployment domain.
 - 2026-04-23: Ran the full `build_training_dataset.py` build with `exact_lidar_parent_child_inverted` and `local_idw`, producing `prepared_training_dataset/` with 5282 samples, 5282 valid masks, and time-block splits of train=4311, val=564, test=407.
 - 2026-04-23: Added `citrus_project/research/advisor_notes.md` to track professor/advisor questions and recommendations, including the current later-stage motion-sensitivity side-question and the suggestion to check whether speed-detection literature has any useful connection.
+- 2026-04-23: Synced the milestone workspace READMEs so the folder structure itself now reflects that Milestone 0 is complete through the full dataset build and Milestone 1 is the active next stage.
+- 2026-04-27: Added the user's preferred explanation style for AI/PyTorch/image-processing concepts: concrete mental hooks, exact value meanings, numeric examples, and proactive beginner-facing clarification of adjacent terms.
+- 2026-04-27: Added the user's preferred mutual-understanding workflow for deep AI/model-algorithm work: ask frequent concept checks, map formulas to tensor operations in the repository, and slow down until both the mathematical and code-level meanings are shared.
 
 ## Update Template (Append On Future Changes)
 

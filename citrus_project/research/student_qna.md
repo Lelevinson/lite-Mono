@@ -25,6 +25,86 @@ We are trying to improve Lite-Mono, a lightweight monocular depth model, so it w
 
 ## Common Questions
 
+### What are some basic image/model words I should know?
+
+Here are the main ones in simple language:
+
+1. `frame`
+   - one image from a video or sequence
+
+2. `target frame`
+   - the main image we want the model to explain or predict depth for
+
+3. `source frame`
+   - a nearby image, such as the previous or next frame, used during self-supervised training
+
+4. `depth`
+   - how far a pixel is from the camera
+
+5. `disparity`
+   - an inverse-depth-like value
+   - larger disparity usually means the point is closer
+   - Lite-Mono predicts disparity first and we later convert it into a depth-like output
+
+6. `pose`
+   - where the camera is and which direction it is facing
+   - when we say `relative pose`, we mean how the camera moved between two frames
+
+7. `translation`
+   - the movement part of pose, such as forward, backward, left, or right
+
+8. `rotation`
+   - the turning part of pose, such as turning left, right, up, or down
+
+9. `warp` or `reprojection`
+   - digitally moving pixels from one frame so they should line up with another frame
+
+10. `loss`
+   - the badness score used during training
+   - higher loss means the model is doing worse on that training step
+
+11. `metric`
+   - the evaluation number we report after comparing prediction against a reference
+   - example idea: lower error metric usually means better depth prediction
+
+12. `inference`
+   - running the model to get a prediction
+   - no training happens here
+
+13. `deployment`
+   - using the model in the real robot/system after training is already finished
+
+### What is the difference between training and evaluation?
+
+They are not the same thing.
+
+1. `training`
+   - the model is learning
+   - it predicts something
+   - the code computes a training loss
+   - the optimizer updates the model weights
+
+2. `evaluation`
+   - the model prediction is checked
+   - we compare it against a reference depth target
+   - we compute reported numbers such as error metrics
+   - the model weights are not updated
+
+Simple summary:
+
+- training = learning
+- evaluation = checking
+
+For the original Lite-Mono style:
+
+1. during self-supervised training, nearby RGB frames are used to build the training loss
+2. during evaluation, the final depth prediction is compared against a reference depth map
+
+So:
+
+- training loss changes the model
+- evaluation metrics do not directly change the model
+
 ### What is a "pair"?
 
 A pair means:
@@ -221,6 +301,408 @@ One more important detail:
 - disparity is still a depth-like map, but it is not automatically the same as "true depth in meters"
 - for fair evaluation, we later need to make sure the model output and our label format are compared in a compatible way
 
+### What is disparity, and how is it different from our LiDAR labels?
+
+Disparity is an inverse-depth value. It is not "meters", but it has a direct mathematical relationship to depth.
+
+In Lite-Mono, the conversion is:
+
+```text
+depth = 1 / scaled_disparity
+```
+
+So if `scaled_disparity` is bigger, the final depth becomes smaller.
+
+Example values:
+
+| Scaled disparity | Depth calculation | Meaning |
+|---:|---:|---|
+| `1.0` | `1 / 1.0 = 1.0` | about 1 meter |
+| `0.5` | `1 / 0.5 = 2.0` | about 2 meters |
+| `0.25` | `1 / 0.25 = 4.0` | about 4 meters |
+| `0.1` | `1 / 0.1 = 10.0` | about 10 meters |
+| `0.01` | `1 / 0.01 = 100.0` | about 100 meters |
+
+That is the concrete meaning:
+
+- high disparity value = closer
+- low disparity value = farther
+
+This is the opposite direction from depth meters:
+
+| Representation | Bigger number means |
+|---|---|
+| `depth` in meters | farther away |
+| `disparity` | closer |
+
+Depth is the direct everyday meaning:
+
+- `depth = how far away this pixel is from the camera`
+
+Scaled disparity is the inverse-style representation:
+
+- `scaled_disparity = 1 / depth`
+
+There is one extra Lite-Mono detail:
+
+1. the raw network output is a normalized value
+2. Lite-Mono maps it into a scaled disparity range
+3. then it calculates depth with `1 / scaled_disparity`
+
+The names `min_disp` and `max_disp` can feel backwards at first:
+
+1. `min_depth = 0.1 m`
+   - the nearest allowed depth
+   - this becomes `max_disp = 1 / 0.1 = 10.0`
+
+2. `max_depth = 100.0 m`
+   - the farthest allowed depth
+   - this becomes `min_disp = 1 / 100.0 = 0.01`
+
+So:
+
+- nearest depth has the biggest disparity
+- farthest depth has the smallest disparity
+
+When we report `min`, `median`, and `max`, those are just summaries of a whole image-shaped array:
+
+1. `min`
+   - the smallest value anywhere in the predicted map
+
+2. `median`
+   - the middle value after sorting all valid pixels
+   - useful because it is less affected by extreme pixels than the average
+
+3. `max`
+   - the largest value anywhere in the predicted map
+
+In the original `test_simple.py`, the saved `*_disp.npy` file is the scaled disparity output, not the final depth array.
+
+Our Citrus LiDAR labels are different from the model's raw output:
+
+1. `dense_lidar_npz/`
+   - stores depth values in meters
+   - example meaning: a pixel value around `3.0` means about 3 meters from the camera
+   - invalid or untrusted places may be `0` or ignored by the valid mask
+
+2. `dense_lidar_valid_mask_npz/`
+   - stores which label pixels should be trusted
+   - `1` means use this pixel for scoring/training
+   - `0` means ignore this pixel
+
+For Milestone 1, we do not need to change the original Lite-Mono model just because it outputs disparity first.
+
+Instead, the evaluation code should:
+
+1. run Lite-Mono on the RGB image
+2. get the predicted disparity
+3. convert or invert it into a depth-style prediction
+4. resize it to match the `720 x 1280` Citrus label shape
+5. compare it with the LiDAR depth label only where the valid mask is `1`
+
+So the change we need is in the evaluation wrapper/script, not in the model architecture.
+
+### What are raw disparity, scaled disparity, predicted depth, and display images?
+
+These are easy to mix up because the code often uses the short name `disp`.
+
+Important: in Lite-Mono code, `disp` usually means `disparity`, not `display`.
+
+There are four different things:
+
+1. Raw model output
+   - code idea: `outputs[("disp", 0)]`
+   - shape example: `[1, 1, 192, 640]`
+   - values are a per-pixel `level of closeness`
+   - `0` means the model is pushing that pixel toward the far side of the allowed range
+   - `1` means the model is pushing that pixel toward the near side of the allowed range
+   - the output is between `0` and `1` because the depth decoder uses a sigmoid at the end
+   - not meters
+   - not directly compared with LiDAR labels
+
+2. Scaled disparity
+   - code idea: `scaled_disp`
+   - converts the `0` to `1` closeness level into the inverse-depth range chosen by Lite-Mono
+   - made using Lite-Mono's `min_depth=0.1` and `max_depth=100.0`
+   - still not depth meters
+   - behaves like inverse depth
+   - bigger value means closer
+   - this is what the original `test_simple.py` saves as `*_disp.npy`
+
+3. Predicted depth
+   - code idea: `depth = 1 / scaled_disp`
+   - this is the array that can be compared with depth labels after resizing and masking
+   - values are depth-like numbers
+   - for self-supervised monocular models, the raw meter scale can still be wrong even after conversion
+   - median scaling may be used during evaluation to align the prediction scale with the label scale
+
+4. Display image
+   - example: `*_disp.jpeg`
+   - a colorized picture for humans to look at
+   - not used for metric calculation
+   - colors are not the exact numeric values
+
+For Milestone 1 evaluation, the important comparison is:
+
+```text
+predicted depth array
+vs
+LiDAR depth label array
+only where valid mask = 1
+```
+
+We should not compare the JPEG visualization to anything numeric.
+
+### Why does the model use a `0` to `1` closeness level first?
+
+The model uses a bounded output because it is easier and more stable for training.
+
+If the network directly output arbitrary meter values, it could produce strange negative values or huge values while learning. Lite-Mono avoids that by making the decoder output a value between `0` and `1`.
+
+Think of the raw output as a slider for each pixel:
+
+```text
+0.0 = far end of the allowed depth range
+1.0 = near end of the allowed depth range
+```
+
+Then Lite-Mono translates that slider into scaled disparity:
+
+```text
+scaled_disp = min_disp + (max_disp - min_disp) * raw_disp
+```
+
+Using the original settings:
+
+```text
+min_depth = 0.1 m
+max_depth = 100.0 m
+min_disp = 1 / 100.0 = 0.01
+max_disp = 1 / 0.1 = 10.0
+```
+
+So:
+
+```text
+scaled_disp = 0.01 + (10.0 - 0.01) * raw_disp
+depth = 1 / scaled_disp
+```
+
+Example:
+
+| Raw closeness level | Scaled disparity | Converted depth |
+|---:|---:|---:|
+| `0.0` | `0.01` | `100.0 m` |
+| `0.1` | `1.009` | `0.991 m` |
+| `0.5` | `5.005` | `0.200 m` |
+| `1.0` | `10.0` | `0.1 m` |
+
+The numbers are not evenly spaced in meters because the model works in inverse depth. Most of the raw `0` to `1` slider gives more detail to closer ranges.
+
+### What is median scaling?
+
+Median scaling is a simple evaluation-time correction for monocular scale.
+
+The model may predict the right relative layout but the wrong absolute meter scale. Example:
+
+1. LiDAR label median depth: `1.918 m`
+2. model predicted median depth: `0.583 m`
+3. scale ratio: `1.918 / 0.583 = 3.29`
+
+Then every predicted depth value is multiplied by `3.29` before computing the median-scaled metrics.
+
+So if the model predicted:
+
+```text
+0.5 m, 1.0 m, 2.0 m
+```
+
+after median scaling it becomes:
+
+```text
+1.645 m, 3.29 m, 6.58 m
+```
+
+Median scaling is not training. It does not change the model. It is only a way to evaluate whether the depth structure is good after fixing the overall scale.
+
+Why use the median instead of the mean or mode?
+
+1. Median is robust to extreme depth values
+   - depth maps can contain a few very large or very wrong values
+   - the mean can be pulled strongly by those extremes
+   - the median is the middle value, so a few extreme pixels affect it much less
+
+2. Mode is not very useful for continuous depth values
+   - depth is usually stored as floating-point numbers such as `1.9175627`
+   - exact repeated values may be rare
+   - the "most common value" can depend too much on binning choices
+
+3. Median matches common monocular depth evaluation practice
+   - self-supervised monocular models often get relative depth structure better than exact meter scale
+   - median scaling gives one stable global scale correction per image
+
+Simple example:
+
+```text
+predicted depths: 1, 2, 3, 4, 100
+```
+
+Mean:
+
+```text
+(1 + 2 + 3 + 4 + 100) / 5 = 22
+```
+
+Median:
+
+```text
+middle value = 3
+```
+
+The value `100` pulls the mean far away, but the median stays representative of the center of the normal values.
+
+That is why we should report both:
+
+1. raw-scale metrics
+   - checks whether the model already predicts correct meters
+
+2. median-scaled metrics
+   - checks whether the relative depth structure is good after scale alignment
+
+### What exact values move through Milestone 1 baseline evaluation?
+
+Here is one real validation sample as an example. This is only an example walkthrough, not an official result.
+
+Sample paths are relative to `citrus_project/dataset_workspace/`:
+
+1. RGB input:
+   - `extracted_rgbd/zed2i_zed_node_left_image_rect_color/zed_2023-07-18-14-33-03_13_bag_1689715983638853080.png`
+
+2. LiDAR depth label:
+   - `prepared_training_dataset/dense_lidar_npz/zed_2023-07-18-14-33-03_13_bag_1689715983638853080.npz`
+
+3. Valid mask:
+   - `prepared_training_dataset/dense_lidar_valid_mask_npz/zed_2023-07-18-14-33-03_13_bag_1689715983638853080.npz`
+
+Step by step:
+
+1. Load RGB image
+   - original image size: `1280 x 720`
+   - pixel values start as image colors
+
+2. Resize for Lite-Mono
+   - model input size from `weights/lite-mono/encoder.pth`: `640 x 192`
+   - PyTorch input tensor shape: `[1, 3, 192, 640]`
+   - meaning: batch size `1`, RGB channels `3`, height `192`, width `640`
+   - tensor values are normalized image values from `0.0` to `1.0`
+
+3. Run the original pretrained model
+   - output raw disparity tensor shape: `[1, 1, 192, 640]`
+   - meaning: batch size `1`, one predicted map, height `192`, width `640`
+   - example raw disparity range for this sample: about `0.036` to `0.573`
+
+4. Convert raw disparity to scaled disparity and depth
+   - Lite-Mono constants: `min_depth=0.1`, `max_depth=100.0`
+   - `min_disp = 1 / 100.0 = 0.01`
+   - `max_disp = 1 / 0.1 = 10.0`
+   - conversion: `scaled_disp = 0.01 + (10.0 - 0.01) * raw_disp`
+   - conversion: `depth = 1 / scaled_disp`
+   - example scaled disparity range: about `0.367` to `5.737`
+   - example predicted depth range at model size: about `0.174 m` to `2.723 m`
+
+5. Resize prediction back to Citrus label size
+   - resized prediction shape: `720 x 1280`
+   - this makes prediction and label line up pixel by pixel
+
+6. Load LiDAR label and valid mask
+   - dense label shape: `720 x 1280`
+   - dense label values are meters
+   - valid mask shape: `720 x 1280`
+   - valid mask values mean `1 = use this pixel`, `0 = ignore this pixel`
+
+7. Apply the evaluation mask
+   - for this sample, valid pixels after mask and `80 m` cap: `363835`
+   - valid fraction: about `39.48%` of image pixels
+   - label depth on those valid pixels ranges from about `0.498 m` to `76.073 m`
+   - label median depth on those valid pixels is about `1.918 m`
+
+8. Compare prediction to label
+   - raw predicted median depth on the same valid pixels: about `0.583 m`
+   - label median depth: about `1.918 m`
+   - median scale ratio: `1.918 / 0.583 = 3.29`
+
+This is why baseline evaluation usually reports two views:
+
+1. raw-scale result
+   - asks whether the model's meter scale already matches the label
+
+2. median-scaled result
+   - rescales the prediction by the median ratio first
+   - asks whether the predicted depth shape/order is good after scale alignment
+
+### How does the original Lite-Mono learn depth without direct depth labels?
+
+It mainly learns from nearby RGB frames during self-supervised training.
+
+Simple idea:
+
+1. the model predicts depth for the target frame
+2. the pose network predicts how the camera moved between nearby frames
+3. using predicted depth + predicted camera motion, the code warps a nearby frame so it should line up with the target frame
+4. if the warped image looks similar to the real target image, the loss is lower
+5. if it lines up badly, the loss is higher
+
+So the model is learning:
+
+- "predict a depth map that helps nearby frames line up correctly"
+
+This is why nearby frames matter during self-supervised training even when there is no direct depth label.
+
+### What does "pose" mean here?
+
+In this project, pose means the camera's position and viewing direction.
+
+When we say `relative pose`, we mean:
+
+1. how much the camera moved between two frames
+2. how much it turned between two frames
+
+So pose is about camera motion between frames, not about the tree's pose or object pose in the general robotics sense.
+
+### Does Lite-Mono use pose during deployment?
+
+Usually no, not in the normal single-image inference path.
+
+For the original runtime story:
+
+1. training uses nearby frames and a pose network
+2. normal deployment/inference uses one RGB image and predicts depth from that single image
+
+So:
+
+- pose is important during self-supervised training
+- pose is not normally used during the original single-image deployment path
+
+### If speed changes a lot, does pose fully handle that?
+
+Not fully.
+
+During self-supervised training:
+
+1. the pose network helps because it predicts frame-to-frame camera motion
+2. this means the method does not assume perfectly constant speed
+3. but large motion differences can still make training harder because overlap becomes worse and reprojection becomes noisier
+
+During deployment with one RGB image:
+
+1. pose is not directly used in the normal original Lite-Mono inference path
+2. speed can still matter indirectly through motion blur, vibration, or harder image conditions
+
+So the safe summary is:
+
+1. pose partly helps during training
+2. pose does not directly solve deployment-time speed effects in the normal single-image runtime path
+
 ### Why does the Lite-Mono paper show a whole depth image if our LiDAR labels are still sparse or semi-dense?
 
 Because these are two different things:
@@ -276,7 +758,8 @@ Two cases:
 1. **Inference later on one RGB image**
    - frame-to-frame speed does not directly matter
    - the model predicts from one image only
-   - it may still be hurt indirectly if the image has motion blur
+   - pose is not normally used in this original single-image runtime path
+   - it may still be hurt indirectly if the image has motion blur or vibration
 
 2. **Training with nearby video frames**
    - yes, very different motion between frames can make training harder
@@ -310,4 +793,5 @@ Simple summary:
 
 - Lite-Mono does not require perfectly constant speed
 - but self-supervised training works best when neighboring frames still have good visual overlap and reasonable motion between them
+- and during normal single-image deployment, speed mainly matters indirectly through image quality, not because pose is being predicted at runtime
 
