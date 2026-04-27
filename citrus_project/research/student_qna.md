@@ -186,6 +186,55 @@ In other words:
 - raw dataset = original extracted sensor files
 - prepared dataset = processed labels + masks + split metadata for experiments
 
+### Why are split files separate from metrics/metadata files?
+
+The split files answer one small question:
+
+- "Which samples belong to train, validation, or test?"
+
+Our current split files are simple pair lists:
+
+```text
+RGB path  dense LiDAR label path
+```
+
+The richer metadata lives in:
+
+```text
+prepared_training_dataset/metrics/all_samples.csv
+```
+
+That CSV has extra fields such as:
+
+1. `rgb_rel`
+2. `dense_rel`
+3. `valid_mask_rel`
+4. `lidar_rel`
+5. timestamp pairing diagnostics
+6. dense-label fill statistics
+7. ZED sanity-check metrics
+
+So, for evaluation:
+
+1. the split file tells us which samples to use
+2. `all_samples.csv` tells us the extra file paths and quality metadata for those samples
+
+Could this be tidier? Yes.
+
+A future evaluator can make this easier by loading both files and building one internal table like:
+
+```text
+split, rgb_path, dense_label_path, valid_mask_path, metadata...
+```
+
+But the current structure is still workable and common enough in research code:
+
+1. small split files are easy to inspect and version
+2. one full CSV keeps all sample metadata in one place
+3. large numeric arrays stay in separate folders
+
+For Milestone 1, we do not need to rebuild the dataset structure first. The Citrus evaluator can treat `all_samples.csv` as the full manifest and the split files as filters for train/val/test membership.
+
 ### Which folders are real data and which are testing folders?
 
 Real extracted data:

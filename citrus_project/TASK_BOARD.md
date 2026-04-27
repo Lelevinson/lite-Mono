@@ -1,11 +1,12 @@
 # Task Board
 
-Date: 2026-04-23
+Date: 2026-04-27
 
 ## Current Project Position
 
 - Milestone 0 is complete through the full dataset build.
 - The next major task is the original Lite-Mono baseline evaluation on Citrus.
+- The Citrus evaluator entry point now exists in Slice 1 data-inspection form.
 - A small curated sample pack is still needed for Friend B's deeper work.
 
 ## Ownership
@@ -20,7 +21,7 @@ Current focus:
 
 Near-term outputs:
 
-- baseline evaluation setup
+- complete baseline evaluation setup beyond the current data-inspection slice
 - first baseline metrics/results
 - runtime and failure-case notes
 
@@ -62,7 +63,7 @@ Expected near-term output:
 ## Blocked / Waiting
 
 1. Friend B’s deeper work depends on a small curated sample pack being prepared.
-2. Baseline evaluation still depends on deciding the Citrus-side inference/evaluation entry point in the Lite-Mono codebase.
+2. Baseline evaluation no longer needs an entry-point decision, but the evaluator still needs model inference, valid-mask-aware metric computation, output saving, and full validation/test loops.
 
 ## Next Review Point
 

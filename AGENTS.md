@@ -648,14 +648,17 @@ Done:
 Current:
 
 1. Milestone 0 is now complete through the full dataset build, with the final/default route and split policy materialized under `prepared_training_dataset/`.
-2. Milestone 1 has only started as a qualitative demo; full baseline evaluation on Citrus validation/test splits is still pending.
-3. We now need baseline evaluation code/results plus a small shared sample pack for teammate support work.
+2. Milestone 1 has started beyond the qualitative demo with a staged Citrus evaluator entry point.
+3. `citrus_project/milestones/01_original_lite_mono_baseline/evaluate_lite_mono_citrus.py` currently implements Slice 1 data inspection for prepared split, manifest, RGB, dense label, and valid-mask loading.
+4. Model inference, valid-mask-aware metrics, output saving, and validation/test loops are still pending.
+5. We now need baseline evaluation code/results plus a small shared sample pack for teammate support work.
 
 Next:
 
-1. Run original Lite-Mono on the built Citrus validation/test split and evaluate against dense labels with valid masks.
-2. Record baseline metrics, runtime, parameter count, and failure cases for Milestone 1.
-3. Prepare and share a small curated sample pack for Friend B's scene-taxonomy and qualitative-support work.
+1. Extend `evaluate_lite_mono_citrus.py` from Slice 1 data inspection to Slice 2 one-image Lite-Mono inference.
+2. Then add one-image valid-mask-aware comparison and full validation/test metric loops.
+3. Record baseline metrics, runtime, parameter count, and failure cases for Milestone 1.
+4. Prepare and share a small curated sample pack for Friend B's scene-taxonomy and qualitative-support work.
 
 Later:
 
@@ -698,6 +701,15 @@ One-image original Lite-Mono Citrus sanity run:
 1. Copy the selected RGB image into `citrus_project/research/generated/lite_mono_single_image_demo/` first, because this folder is ignored and not part of the dataset.
 2. D:/Conda_Envs/lite-mono/python.exe test_simple.py --load_weights_folder weights/lite-mono --image_path citrus_project/research/generated/lite_mono_single_image_demo/zed_2023-07-18-14-26-49_0_bag_1689715609331936216.png --model lite-mono --no_cuda
 3. Output appears next to the copied input image as `*_disp.jpeg` and `*_disp.npy`.
+
+Milestone 1 Citrus evaluator:
+
+1. Slice 1 data inspection from repo root:
+   - `D:/Conda_Envs/lite-mono/python.exe citrus_project/milestones/01_original_lite_mono_baseline/evaluate_lite_mono_citrus.py --split val --max_samples 3`
+2. Current Slice 1 behavior:
+   - reads `prepared_training_dataset/splits/<split>_pairs.txt`
+   - joins split entries with `prepared_training_dataset/metrics/all_samples.csv`
+   - prints RGB size, dense-label shape/stats, valid-mask shape/stats, valid-pixel ratio, and pairing diagnostics
 
 ## Change Log
 
@@ -760,6 +772,7 @@ One-image original Lite-Mono Citrus sanity run:
 - 2026-04-23: Synced the milestone workspace READMEs so the folder structure itself now reflects that Milestone 0 is complete through the full dataset build and Milestone 1 is the active next stage.
 - 2026-04-27: Added the user's preferred explanation style for AI/PyTorch/image-processing concepts: concrete mental hooks, exact value meanings, numeric examples, and proactive beginner-facing clarification of adjacent terms.
 - 2026-04-27: Added the user's preferred mutual-understanding workflow for deep AI/model-algorithm work: ask frequent concept checks, map formulas to tensor operations in the repository, and slow down until both the mathematical and code-level meanings are shared.
+- 2026-04-27: Added the Milestone 1 Citrus evaluator entry point `evaluate_lite_mono_citrus.py` with Slice 1 data inspection for prepared split, manifest, RGB, dense LiDAR label, and valid mask loading; model inference and metrics remain next slices.
 
 ## Update Template (Append On Future Changes)
 
