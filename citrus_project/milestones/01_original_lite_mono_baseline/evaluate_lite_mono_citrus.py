@@ -8,6 +8,9 @@ import numpy as np
 from PIL import Image
 
 
+DEPTH_METRIC_NAMES = ("abs_rel", "sq_rel", "rmse", "rmse_log", "a1", "a2", "a3")
+
+
 class LiteMonoModel(NamedTuple):
     encoder: object
     depth_decoder: object
@@ -74,6 +77,26 @@ def format_stats(stats: Dict[str, object]) -> str:
         f"median={stats['median']:.6f}, "
         f"max={stats['max']:.6f}"
     )
+
+
+def compute_depth_errors_np(gt_depth: np.ndarray, pred_depth: np.ndarray) -> Dict[str, float]:
+    thresh = np.maximum(gt_depth / pred_depth, pred_depth / gt_depth)
+    a1 = float((thresh < 1.25).mean())
+    a2 = float((thresh < 1.25**2).mean())
+    a3 = float((thresh < 1.25**3).mean())
+
+    rmse = float(np.sqrt(np.mean((gt_depth - pred_depth) ** 2)))
+    rmse_log = float(
+        np.sqrt(np.mean((np.log(gt_depth) - np.log(pred_depth)) ** 2))
+    )
+    abs_rel = float(np.mean(np.abs(gt_depth - pred_depth) / gt_depth))
+    sq_rel = float(np.mean(((gt_depth - pred_depth) ** 2) / gt_depth))
+
+    return dict(zip(DEPTH_METRIC_NAMES, (abs_rel, sq_rel, rmse, rmse_log, a1, a2, a3)))
+
+
+def format_depth_metrics(metrics: Dict[str, float]) -> str:
+    return ", ".join(f"{name}={metrics[name]:.4f}" for name in DEPTH_METRIC_NAMES)
 
 
 def ensure_repo_imports(root: Path) -> None:
@@ -145,7 +168,9 @@ def image_to_input_tensor(image: Image.Image, model: LiteMonoModel):
     return tensor.to(model.device)
 
 
-def run_lite_mono_inference(rgb_path: Path, label_shape: Tuple[int, int], model: LiteMonoModel) -> None:
+def run_lite_mono_inference(
+    rgb_path: Path, label_shape: Tuple[int, int], model: LiteMonoModel
+) -> np.ndarray:
     import torch
     import torch.nn.functional as F
 
@@ -202,6 +227,63 @@ def run_lite_mono_inference(rgb_path: Path, label_shape: Tuple[int, int], model:
         "    Resized depth:      "
         f"shape={tuple(depth_resized.shape)}, {format_stats(finite_stats(depth_resized_np))}"
     )
+    return depth_resized_np[0, 0]
+
+
+def evaluate_prediction_against_label(
+    dense: np.ndarray,
+    valid_mask: np.ndarray,
+    pred_depth: np.ndarray,
+    eval_min_depth: float,
+    eval_max_depth: float,
+) -> None:
+    eval_mask = (
+        (valid_mask > 0)
+        & np.isfinite(dense)
+        & (dense > eval_min_depth)
+        & (dense < eval_max_depth)
+        & np.isfinite(pred_depth)
+        & (pred_depth > 0)
+    )
+
+    valid_count = int(np.count_nonzero(eval_mask))
+    print(
+        "  Evaluation mask: "
+        f"{valid_count}/{dense.size} "
+        f"({valid_count / dense.size:.4%}) after valid mask and "
+        f"{eval_min_depth}..{eval_max_depth} m label cap"
+    )
+
+    if valid_count == 0:
+        print("  Depth metrics: skipped because no valid comparison pixels remain")
+        return
+
+    gt_eval = dense[eval_mask].astype(np.float64)
+    pred_eval = pred_depth[eval_mask].astype(np.float64)
+    pred_raw = np.clip(pred_eval, eval_min_depth, eval_max_depth)
+    raw_metrics = compute_depth_errors_np(gt_eval, pred_raw)
+
+    gt_median = float(np.median(gt_eval))
+    pred_median = float(np.median(pred_eval))
+    scale_ratio = None
+    if np.isfinite(gt_median) and np.isfinite(pred_median) and pred_median > 0:
+        scale_ratio = gt_median / pred_median
+
+    ratio_text = f"{scale_ratio:.6f}" if scale_ratio is not None else "n/a"
+    print(
+        "  Metric medians: "
+        f"label={gt_median:.6f} m, raw_pred={pred_median:.6f} m, "
+        f"median_scale_ratio={ratio_text}"
+    )
+    print(f"  Raw-scale metrics:        {format_depth_metrics(raw_metrics)}")
+
+    if scale_ratio is None:
+        print("  Median-scaled metrics:    skipped because scale ratio is invalid")
+        return
+
+    pred_scaled = np.clip(pred_eval * scale_ratio, eval_min_depth, eval_max_depth)
+    scaled_metrics = compute_depth_errors_np(gt_eval, pred_scaled)
+    print(f"  Median-scaled metrics:    {format_depth_metrics(scaled_metrics)}")
 
 
 def inspect_sample(
@@ -211,6 +293,8 @@ def inspect_sample(
     manifest: Dict[str, Dict[str, str]],
     workspace_dir: Path,
     model: Optional[LiteMonoModel],
+    eval_min_depth: float,
+    eval_max_depth: float,
 ) -> None:
     if rgb_rel not in manifest:
         raise KeyError(f"{rgb_rel} is present in split file but missing from all_samples.csv")
@@ -254,7 +338,14 @@ def inspect_sample(
     print(f"  Pair delta ms: {row.get('time_delta_ms', 'n/a')}")
     print(f"  Dense fill ratio from manifest: {row.get('dense_fill_ratio', 'n/a')}")
     if model is not None:
-        run_lite_mono_inference(rgb_path, dense.shape, model)
+        pred_depth = run_lite_mono_inference(rgb_path, dense.shape, model)
+        evaluate_prediction_against_label(
+            dense=dense,
+            valid_mask=valid_mask,
+            pred_depth=pred_depth,
+            eval_min_depth=eval_min_depth,
+            eval_max_depth=eval_max_depth,
+        )
 
 
 def parse_args() -> argparse.Namespace:
@@ -319,6 +410,18 @@ def parse_args() -> argparse.Namespace:
         default=100.0,
         help="Maximum depth used by Lite-Mono disp_to_depth conversion.",
     )
+    parser.add_argument(
+        "--eval_min_depth",
+        type=float,
+        default=1e-3,
+        help="Minimum label depth kept for metric evaluation.",
+    )
+    parser.add_argument(
+        "--eval_max_depth",
+        type=float,
+        default=80.0,
+        help="Maximum label depth kept for metric evaluation, matching Lite-Mono/KITTI convention.",
+    )
     return parser.parse_args()
 
 
@@ -357,9 +460,19 @@ def main() -> None:
         print(f"  Device:            {model.device}")
         print(f"  Feed size:         width={model.feed_width}, height={model.feed_height}")
         print(f"  Depth range:       {model.min_depth}..{model.max_depth} m")
+        print(f"  Eval depth range:  {args.eval_min_depth}..{args.eval_max_depth} m")
 
     for index, (rgb_rel, dense_rel) in enumerate(selected_pairs, start=1):
-        inspect_sample(index, rgb_rel, dense_rel, manifest, workspace_dir, model)
+        inspect_sample(
+            index,
+            rgb_rel,
+            dense_rel,
+            manifest,
+            workspace_dir,
+            model,
+            args.eval_min_depth,
+            args.eval_max_depth,
+        )
 
 
 if __name__ == "__main__":

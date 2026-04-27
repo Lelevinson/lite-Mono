@@ -52,3 +52,38 @@ Possible paper figure:
 
 Do not use the current single-image run as a quantitative result.
 
+## Original Lite-Mono Citrus Evaluator Slice 3 Smoke Metrics
+
+Date: 2026-04-28
+
+Paper relevance: implementation sanity check only. This is not the full baseline result because it uses one validation image.
+
+Purpose: verify that the Citrus evaluator can compare original Lite-Mono predicted depth against LiDAR-densified labels using the valid mask.
+
+### Command
+
+```powershell
+D:/Conda_Envs/lite-mono/python.exe citrus_project/milestones/01_original_lite_mono_baseline/evaluate_lite_mono_citrus.py --split val --max_samples 1 --run_model --no_cuda
+```
+
+### Sample
+
+- RGB: `extracted_rgbd/zed2i_zed_node_left_image_rect_color/zed_2023-07-18-14-33-03_13_bag_1689715983638853080.png`
+- Dense label: `prepared_training_dataset/dense_lidar_npz/zed_2023-07-18-14-33-03_13_bag_1689715983638853080.npz`
+- Valid mask: `prepared_training_dataset/dense_lidar_valid_mask_npz/zed_2023-07-18-14-33-03_13_bag_1689715983638853080.npz`
+
+### One-Sample Output
+
+- evaluation mask: 363835 / 921600 pixels, 39.4786%
+- label median: 1.917563 m
+- raw prediction median: 0.582838 m
+- median scale ratio: 3.290044
+- raw-scale metrics: `abs_rel=0.7046`, `sq_rel=1.7498`, `rmse=3.9727`, `rmse_log=1.3157`, `a1=0.0010`, `a2=0.0027`, `a3=0.0083`
+- median-scaled metrics: `abs_rel=0.1993`, `sq_rel=0.5087`, `rmse=2.9395`, `rmse_log=0.3596`, `a1=0.7054`, `a2=0.8697`, `a3=0.9219`
+
+### Interpretation
+
+The raw-scale metrics are poor because the original pretrained model predicts this Citrus scene much closer than the LiDAR label median. Median scaling substantially improves the threshold metrics, which suggests this one sample has more usable relative depth structure than raw metric scale.
+
+Do not report this as the baseline. The next evaluator slice should aggregate the same metrics over the validation/test split and save reproducible outputs.
+

@@ -618,6 +618,57 @@ That is why we should report both:
 2. median-scaled metrics
    - checks whether the relative depth structure is good after scale alignment
 
+### What do the depth metric names mean?
+
+In Slice 3, the evaluator compares two one-dimensional lists of numbers after masking:
+
+1. trusted LiDAR label depths, in meters
+2. model predicted depths at the same pixels, also in meters after conversion from disparity
+
+The mask matters because we only score pixels where the LiDAR label is trusted.
+
+The metrics are:
+
+1. `abs_rel`
+   - average relative error
+   - plain meaning: "on average, how big is the error compared with the true distance?"
+   - lower is better
+
+2. `sq_rel`
+   - squared relative error
+   - plain meaning: "like `abs_rel`, but it punishes large mistakes more strongly"
+   - lower is better
+
+3. `rmse`
+   - root mean squared error in meters
+   - plain meaning: "typical meter-sized error, with large mistakes punished heavily"
+   - lower is better
+
+4. `rmse_log`
+   - RMSE after taking logarithms of depth
+   - plain meaning: "typical ratio-style error instead of raw meter error"
+   - lower is better
+
+5. `a1`, `a2`, `a3`
+   - accuracy threshold scores
+   - plain meaning: "what fraction of pixels are close enough?"
+   - higher is better
+
+For the threshold scores, the evaluator checks:
+
+```text
+max(label / prediction, prediction / label)
+```
+
+If prediction and label are exactly the same, this value is `1.0`.
+
+`a1` counts pixels where the ratio is below `1.25`.
+That means prediction is within about 25% of the label.
+
+`a2` uses `1.25^2`.
+`a3` uses `1.25^3`.
+So `a3` is more forgiving than `a1`.
+
 ### What exact values move through Milestone 1 baseline evaluation?
 
 Here is one real validation sample as an example. This is only an example walkthrough, not an official result.
@@ -688,6 +739,21 @@ This is why baseline evaluation usually reports two views:
 2. median-scaled result
    - rescales the prediction by the median ratio first
    - asks whether the predicted depth shape/order is good after scale alignment
+
+Slice 3 one-sample smoke metrics for this same sample:
+
+```text
+raw-scale:
+abs_rel=0.7046, sq_rel=1.7498, rmse=3.9727, rmse_log=1.3157, a1=0.0010, a2=0.0027, a3=0.0083
+
+median-scaled:
+abs_rel=0.1993, sq_rel=0.5087, rmse=2.9395, rmse_log=0.3596, a1=0.7054, a2=0.8697, a3=0.9219
+```
+
+This is not the official baseline result because it is only one image. It is mainly a code sanity check showing that:
+
+1. the raw model scale is far too close for this sample
+2. the relative depth structure becomes much more reasonable after median scaling
 
 ### How does the original Lite-Mono learn depth without direct depth labels?
 

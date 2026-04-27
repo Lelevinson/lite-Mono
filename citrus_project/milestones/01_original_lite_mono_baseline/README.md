@@ -11,8 +11,8 @@ Current status:
 - This is the active next milestone.
 - A one-image Lite-Mono sanity demo already exists, but full baseline evaluation has not been completed yet.
 - The Citrus evaluator entry point has started as `evaluate_lite_mono_citrus.py`.
-- Current evaluator slice: data inspection plus optional one-image/limited-sample model inference.
-- Valid-mask-aware metric computation is not implemented yet.
+- Current evaluator slice: data inspection, optional one-image/limited-sample model inference, and one-sample valid-mask-aware metric comparison.
+- Full split-level metric aggregation and output saving are not implemented yet.
 
 Main input dataset:
 
@@ -43,6 +43,7 @@ Current helper behavior:
 - checks RGB, dense LiDAR label, and valid-mask paths
 - prints image size, array shapes, value summaries, valid-pixel count, and pairing diagnostics
 - with `--run_model`, loads `weights/lite-mono`, runs the original model, and prints input tensor, raw closeness level, scaled disparity, predicted depth, and resized depth summaries
+- with `--run_model`, also compares predicted depth to dense LiDAR labels on valid-mask pixels and prints raw-scale plus median-scaled depth metrics
 
 Main record files:
 

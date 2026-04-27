@@ -649,14 +649,14 @@ Current:
 
 1. Milestone 0 is now complete through the full dataset build, with the final/default route and split policy materialized under `prepared_training_dataset/`.
 2. Milestone 1 has started beyond the qualitative demo with a staged Citrus evaluator entry point.
-3. `citrus_project/milestones/01_original_lite_mono_baseline/evaluate_lite_mono_citrus.py` currently implements Slice 1 data inspection plus Slice 2 optional limited-sample Lite-Mono inference.
-4. Full valid-mask-aware metrics, output saving, and validation/test loops are still pending.
+3. `citrus_project/milestones/01_original_lite_mono_baseline/evaluate_lite_mono_citrus.py` currently implements Slice 1 data inspection, Slice 2 optional limited-sample Lite-Mono inference, and Slice 3 one-sample valid-mask-aware metric comparison.
+4. Full split-level metric aggregation, output saving, and validation/test loops are still pending.
 5. We now need baseline evaluation code/results plus a small shared sample pack for teammate support work.
 
 Next:
 
-1. Extend `evaluate_lite_mono_citrus.py` from Slice 2 inference to Slice 3 one-image valid-mask-aware comparison.
-2. Then add full validation/test metric loops and output saving.
+1. Extend `evaluate_lite_mono_citrus.py` from Slice 3 one-sample metrics to full validation/test metric loops and output saving.
+2. Add runtime/parameter reporting for the original Lite-Mono baseline.
 3. Record baseline metrics, runtime, parameter count, and failure cases for Milestone 1.
 4. Prepare and share a small curated sample pack for Friend B's scene-taxonomy and qualitative-support work.
 
@@ -706,7 +706,7 @@ Milestone 1 Citrus evaluator:
 
 1. Slice 1 data inspection from repo root:
    - `D:/Conda_Envs/lite-mono/python.exe citrus_project/milestones/01_original_lite_mono_baseline/evaluate_lite_mono_citrus.py --split val --max_samples 3`
-2. Slice 2 limited-sample model inference from repo root:
+2. Slice 2 and Slice 3 limited-sample model inference plus one-sample valid-mask-aware metrics from repo root:
    - `D:/Conda_Envs/lite-mono/python.exe citrus_project/milestones/01_original_lite_mono_baseline/evaluate_lite_mono_citrus.py --split val --max_samples 1 --run_model --no_cuda`
 3. Current Slice 1 behavior:
    - reads `prepared_training_dataset/splits/<split>_pairs.txt`
@@ -716,7 +716,11 @@ Milestone 1 Citrus evaluator:
    - loads `weights/lite-mono`
    - runs original Lite-Mono on selected RGB samples
    - prints input tensor, raw closeness level, scaled disparity, predicted depth, and resized depth summaries
-   - does not compute valid-mask-aware metrics yet
+5. Current Slice 3 behavior:
+   - compares resized predicted depth against LiDAR-densified labels only on valid-mask pixels
+   - uses evaluation label depth cap `eval_min_depth=0.001` and `eval_max_depth=80.0` by default, matching the original Lite-Mono/KITTI evaluation convention
+   - prints raw-scale and median-scaled one-sample metrics: `abs_rel`, `sq_rel`, `rmse`, `rmse_log`, `a1`, `a2`, and `a3`
+   - does not yet aggregate metrics across a full split or save outputs
 
 ## Change Log
 
@@ -781,6 +785,7 @@ Milestone 1 Citrus evaluator:
 - 2026-04-27: Added the user's preferred mutual-understanding workflow for deep AI/model-algorithm work: ask frequent concept checks, map formulas to tensor operations in the repository, and slow down until both the mathematical and code-level meanings are shared.
 - 2026-04-27: Added the Milestone 1 Citrus evaluator entry point `evaluate_lite_mono_citrus.py` with Slice 1 data inspection for prepared split, manifest, RGB, dense LiDAR label, and valid mask loading; model inference and metrics remain next slices.
 - 2026-04-27: Extended the Milestone 1 Citrus evaluator with Slice 2 optional limited-sample original Lite-Mono inference, printing tensor, raw closeness level, scaled disparity, predicted depth, and resized depth summaries while leaving metric computation for the next slice.
+- 2026-04-28: Extended the Milestone 1 Citrus evaluator with Slice 3 one-sample valid-mask-aware depth metrics against dense LiDAR labels, reporting both raw-scale and median-scaled metric rows while leaving full split aggregation/output saving for the next slice.
 
 ## Update Template (Append On Future Changes)
 
