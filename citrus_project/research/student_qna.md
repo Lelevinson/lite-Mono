@@ -882,6 +882,42 @@ Simple example:
 
 That does not mean the final robot system is exactly 2 FPS. It only means this specific evaluator run processed about 2 images per second under those settings.
 
+### What does parameter count mean?
+
+A model parameter is a learned number inside the neural network.
+
+During training, the model changes these numbers to get better.
+
+During inference, the model uses these learned numbers to turn an RGB image into a depth prediction.
+
+Simple mental picture:
+
+```text
+RGB image + learned parameters -> predicted depth
+```
+
+For the original `lite-mono` depth-inference path we are evaluating:
+
+```text
+encoder parameters:       2,848,120
+depth decoder parameters:   226,627
+total parameters:         3,074,747
+```
+
+Plain meaning:
+
+```text
+the depth model uses about 3.075 million learned numbers
+```
+
+Why does this matter?
+
+Our project cares about lightweight robot deployment. A smaller model usually needs less memory and can be easier to run on robot hardware.
+
+Important detail:
+
+The evaluator counts the encoder and depth decoder used for RGB-only depth inference. It does not include the pose network, because the pose network is used during self-supervised training, not during normal one-image depth inference.
+
 ### How does the original Lite-Mono learn depth without direct depth labels?
 
 It mainly learns from nearby RGB frames during self-supervised training.

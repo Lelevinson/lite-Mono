@@ -8,6 +8,7 @@ Expected files from `evaluate_lite_mono_citrus.py`:
   - one aggregate summary for a run
   - contains split name, run settings, valid-pixel coverage, raw-scale mean metrics, and median-scaled mean metrics
   - contains evaluator timing and synchronized model-forward timing when model inference is enabled
+  - contains `model_info` with encoder/depth-decoder parameter counts and checkpoint sizes
 - `*_per_sample.csv`
   - one row per evaluated RGB image
   - useful for finding easy/hard samples and later qualitative failure cases

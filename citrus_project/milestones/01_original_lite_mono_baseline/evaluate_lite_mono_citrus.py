@@ -19,6 +19,7 @@ class LiteMonoModel(NamedTuple):
     depth_decoder: object
     disp_to_depth: Callable
     device: object
+    model_info: Dict[str, object]
     feed_height: int
     feed_width: int
     min_depth: float
@@ -176,6 +177,59 @@ def rate(count: int, seconds: Optional[float]) -> Optional[float]:
     return count / seconds
 
 
+def count_parameters(module: object, trainable_only: bool = False) -> int:
+    params = module.parameters()
+    if trainable_only:
+        return int(sum(param.numel() for param in params if param.requires_grad))
+    return int(sum(param.numel() for param in params))
+
+
+def size_info(path: Path) -> Dict[str, float]:
+    size_bytes = path.stat().st_size
+    return {
+        "bytes": int(size_bytes),
+        "megabytes": size_bytes / (1024 * 1024),
+    }
+
+
+def build_model_info(
+    encoder: object,
+    depth_decoder: object,
+    encoder_path: Path,
+    decoder_path: Path,
+) -> Dict[str, object]:
+    encoder_params = count_parameters(encoder)
+    decoder_params = count_parameters(depth_decoder)
+    encoder_trainable = count_parameters(encoder, trainable_only=True)
+    decoder_trainable = count_parameters(depth_decoder, trainable_only=True)
+    total_params = encoder_params + decoder_params
+    total_trainable = encoder_trainable + decoder_trainable
+    encoder_size = size_info(encoder_path)
+    decoder_size = size_info(decoder_path)
+    total_checkpoint_bytes = encoder_size["bytes"] + decoder_size["bytes"]
+
+    return {
+        "encoder_parameters": encoder_params,
+        "depth_decoder_parameters": decoder_params,
+        "total_parameters": total_params,
+        "total_parameters_millions": total_params / 1_000_000,
+        "encoder_trainable_parameters": encoder_trainable,
+        "depth_decoder_trainable_parameters": decoder_trainable,
+        "total_trainable_parameters": total_trainable,
+        "total_trainable_parameters_millions": total_trainable / 1_000_000,
+        "encoder_checkpoint": encoder_size,
+        "depth_decoder_checkpoint": decoder_size,
+        "total_checkpoint": {
+            "bytes": int(total_checkpoint_bytes),
+            "megabytes": total_checkpoint_bytes / (1024 * 1024),
+        },
+        "parameter_note": (
+            "Counts include the Lite-Mono encoder and depth decoder used for depth "
+            "inference; they do not include the training-only pose network."
+        ),
+    }
+
+
 def build_timing_summary(
     results: List[EvaluationResult],
     requested_count: int,
@@ -269,6 +323,7 @@ def save_results(
             "model": args.model,
             "weights_folder": str(args.weights_folder.resolve()),
             "device": str(model.device) if model is not None else None,
+            "model_info": model.model_info if model is not None else None,
             "feed_width": model.feed_width if model is not None else None,
             "feed_height": model.feed_height if model is not None else None,
             "model_min_depth": args.min_depth,
@@ -358,12 +413,19 @@ def load_lite_mono_model(
     )
     depth_decoder.to(device)
     depth_decoder.eval()
+    model_info = build_model_info(
+        encoder=encoder,
+        depth_decoder=depth_decoder,
+        encoder_path=encoder_path,
+        decoder_path=decoder_path,
+    )
 
     return LiteMonoModel(
         encoder=encoder,
         depth_decoder=depth_decoder,
         disp_to_depth=disp_to_depth,
         device=device,
+        model_info=model_info,
         feed_height=feed_height,
         feed_width=feed_width,
         min_depth=min_depth,
@@ -817,6 +879,17 @@ def main() -> None:
         print(f"  Feed size:         width={model.feed_width}, height={model.feed_height}")
         print(f"  Depth range:       {model.min_depth}..{model.max_depth} m")
         print(f"  Eval depth range:  {args.eval_min_depth}..{args.eval_max_depth} m")
+        print(
+            "  Parameters:        "
+            f"total={model.model_info['total_parameters']} "
+            f"({model.model_info['total_parameters_millions']:.3f}M), "
+            f"encoder={model.model_info['encoder_parameters']}, "
+            f"decoder={model.model_info['depth_decoder_parameters']}"
+        )
+        print(
+            "  Checkpoint size:   "
+            f"{model.model_info['total_checkpoint']['megabytes']:.2f} MiB"
+        )
 
     results = []
     evaluation_loop_start = time.perf_counter()

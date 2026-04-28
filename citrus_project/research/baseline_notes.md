@@ -181,3 +181,32 @@ The first GPU sample includes CUDA warmup overhead, so this small `max3` run sho
 
 The full validation/test run will give a more stable evaluator-level timing estimate, but a dedicated deployment benchmark may still be needed later for a clean robot-runtime/FPS claim.
 
+## Original Lite-Mono Citrus Evaluator Slice 7 Parameter/Checkpoint Smoke Check
+
+Date: 2026-04-28
+
+Paper relevance: model-efficiency metadata. These are the parameter and checkpoint-size fields that should accompany the original Lite-Mono baseline.
+
+Purpose: verify that the evaluator records model-size metadata in the terminal and saved summary JSON.
+
+### Command
+
+```powershell
+D:/Conda_Envs/lite-mono/python.exe citrus_project/milestones/01_original_lite_mono_baseline/evaluate_lite_mono_citrus.py --split val --max_samples 2 --run_model --summary_only --progress_interval 1 --output_dir citrus_project/milestones/01_original_lite_mono_baseline/results
+```
+
+### Model Metadata
+
+- model variant: `lite-mono`
+- device in smoke run: `cuda`
+- total depth-inference parameters: 3,074,747
+- encoder parameters: 2,848,120
+- depth-decoder parameters: 226,627
+- total checkpoint size: 11.94 MiB
+
+### Interpretation
+
+The parameter count includes the encoder and depth decoder used during RGB-only depth inference. It does not include the training-only pose network.
+
+This metadata is now saved in summary JSON under `model_info`, so final full-split result files can support both accuracy and lightweight-model reporting.
+

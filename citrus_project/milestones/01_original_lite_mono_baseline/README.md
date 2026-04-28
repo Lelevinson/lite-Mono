@@ -11,8 +11,8 @@ Current status:
 - This is the active next milestone.
 - A one-image Lite-Mono sanity demo already exists, but full baseline evaluation has not been completed yet.
 - The Citrus evaluator entry point has started as `evaluate_lite_mono_citrus.py`.
-- Current evaluator slice: data inspection, optional model inference, valid-mask-aware metric comparison, aggregate metric summaries, optional result-file saving, and runtime/FPS metadata.
-- Parameter reporting and final full validation/test runs are not completed yet.
+- Current evaluator slice: data inspection, optional model inference, valid-mask-aware metric comparison, aggregate metric summaries, optional result-file saving, runtime/FPS metadata, and model parameter/checkpoint metadata.
+- Final full validation/test runs are not completed yet.
 
 Main input dataset:
 
@@ -48,6 +48,10 @@ D:/Conda_Envs/lite-mono/python.exe citrus_project/milestones/01_original_lite_mo
 D:/Conda_Envs/lite-mono/python.exe citrus_project/milestones/01_original_lite_mono_baseline/evaluate_lite_mono_citrus.py --split val --max_samples 3 --run_model --summary_only --progress_interval 1 --output_dir citrus_project/milestones/01_original_lite_mono_baseline/results
 ```
 
+```powershell
+D:/Conda_Envs/lite-mono/python.exe citrus_project/milestones/01_original_lite_mono_baseline/evaluate_lite_mono_citrus.py --split val --max_samples 2 --run_model --summary_only --progress_interval 1 --output_dir citrus_project/milestones/01_original_lite_mono_baseline/results
+```
+
 Current helper behavior:
 
 - reads the prepared split file
@@ -61,6 +65,16 @@ Current helper behavior:
 - with `--output_dir`, saves one aggregate `*_summary.json` file and one `*_per_sample.csv` file
 - saved summaries include evaluator-loop timing and synchronized model-forward timing/FPS
 - per-sample CSV files include wall-time and model-forward timing columns
+- printed model setup includes encoder, depth-decoder, and total depth-inference parameter counts
+- saved summaries include `model_info` with parameter counts and checkpoint sizes
+
+Current original `lite-mono` depth-inference model size:
+
+- total depth-inference parameters: 3,074,747
+- encoder parameters: 2,848,120
+- depth-decoder parameters: 226,627
+- total checkpoint size: about 11.94 MiB
+- note: this excludes the training-only pose network
 
 Saved result location:
 
