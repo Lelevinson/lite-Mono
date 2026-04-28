@@ -29,7 +29,9 @@ Current status:
 
 - Full validation and test runs completed on 2026-04-28.
 - First validation good/typical/bad visual panels were generated on 2026-04-28 using `median_scaled_a1`.
-- Needs written failure-case interpretation and possibly test-split visual selection before it is a complete paper package.
+- Test good/typical/bad visual panels were generated on 2026-04-29 using `median_scaled_a1`.
+- First written failure-case interpretation exists in `citrus_project/milestones/01_original_lite_mono_baseline/visual_interpretation.md`.
+- Needs a tighter final figure/table design before it is a complete paper package.
 
 ### Dataset/Label Route Selection
 

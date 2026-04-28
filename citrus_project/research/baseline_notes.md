@@ -332,5 +332,45 @@ The visual panels show why the average metric is not enough. A prediction can lo
 
 The good sample shows that the original model can sometimes preserve useful relative scene geometry after median scaling. The bad sample shows the failure case we care about: the model produces broad smooth depth regions, but the LiDAR label has different depth structure over vegetation, trunks, ground, and row edges.
 
-The next analysis step should describe these failure patterns in simple words and decide whether to generate the same good/typical/bad panels for the test split.
+Beginner-friendly interpretation note:
+
+- `citrus_project/milestones/01_original_lite_mono_baseline/visual_interpretation.md`
+
+The interpretation note currently frames the baseline weakness as more than just wrong scale. Wrong scale is present, but even after median scaling the original model still struggles with vegetation geometry, tree/ground boundaries, row gaps, canopy shapes, and smooth monocular priors that do not match LiDAR-supported structure.
+
+The same good/typical/bad panel selection was later generated for the test split, and it showed the same broad behavior pattern: the original model sometimes captures orchard-row layout after scaling, but the typical and bad cases still show smooth-but-wrong geometry around vegetation and row structure.
+
+## Original Lite-Mono Test Visual Selection
+
+Date: 2026-04-29
+
+Paper relevance: qualitative support for the test split. This complements the validation panels and helps show that the visual interpretation is not only a validation-set artifact.
+
+Purpose: choose one good, one typical, and one bad test example from the full per-sample CSV using `median_scaled_a1`, then render visual panels.
+
+### Command
+
+```powershell
+D:/Conda_Envs/lite-mono/python.exe citrus_project/milestones/01_original_lite_mono_baseline/analyze_lite_mono_citrus_results.py --split test
+```
+
+### Outputs
+
+- `citrus_project/milestones/01_original_lite_mono_baseline/visuals/good_index_0024_median_scaled_a1_0.771.png`
+- `citrus_project/milestones/01_original_lite_mono_baseline/visuals/typical_index_0007_median_scaled_a1_0.530.png`
+- `citrus_project/milestones/01_original_lite_mono_baseline/visuals/bad_index_0046_median_scaled_a1_0.076.png`
+- `citrus_project/milestones/01_original_lite_mono_baseline/visuals/test_lite-mono_median_scaled_a1_selection_summary.json`
+- `citrus_project/milestones/01_original_lite_mono_baseline/visuals/test_lite-mono_median_scaled_a1_selection_summary.csv`
+
+### Selected Samples
+
+- good: test index 24, median-scaled `a1=0.7709`, median-scaled `abs_rel=0.1821`, valid fraction `43.17%`
+- typical: test index 7, median-scaled `a1=0.5301`, median-scaled `abs_rel=0.3168`, valid fraction `37.86%`
+- bad: test index 46, median-scaled `a1=0.0761`, median-scaled `abs_rel=0.6204`, valid fraction `38.22%`
+
+### Interpretation
+
+The test panels reinforce the validation conclusion. The original model can produce a plausible full-image depth map, and in the good case the broad depth layout aligns reasonably after median scaling. But the typical and bad cases still show the central weakness: smooth monocular predictions do not reliably match LiDAR-supported vegetation, tree-row, and ground/canopy geometry.
+
+The next Milestone 1 choice is whether to build a broader failure taxonomy or treat the baseline evidence as sufficient and move to Milestone 2.
 

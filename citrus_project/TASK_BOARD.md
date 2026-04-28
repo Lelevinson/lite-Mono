@@ -8,7 +8,9 @@ Date: 2026-04-28
 - The original Lite-Mono baseline evaluation has now produced full validation/test result files on Citrus.
 - The Citrus evaluator entry point now supports Slice 1 data inspection, Slice 2 model inference, Slice 3 valid-mask-aware metrics, Slice 4 aggregate metric summaries, Slice 5 optional result-file saving, Slice 6 runtime/FPS metadata, and Slice 7 model parameter/checkpoint metadata.
 - Slice 8 result-interpretation support now selects good/typical/bad validation samples and renders visual panels.
-- The next Milestone 1 work is explaining those visual failure patterns and deciding whether test visuals, FLOPs, or a dedicated deployment-speed benchmark are needed.
+- The first written visual interpretation note now explains the good/typical/bad panels and the main baseline failure pattern.
+- Test good/typical/bad visual panels are now generated too.
+- The next Milestone 1 choice is whether to build a broader failure taxonomy, add FLOPs/deployment benchmarking, or move into Milestone 2.
 - A small curated sample pack is still needed for Friend B's deeper work.
 
 ## Ownership
@@ -19,12 +21,12 @@ Current focus:
 
 1. maintain the core Citrus pipeline and repo-wide integration
 2. review and explain the original Lite-Mono full Citrus baseline visuals/results
-3. prepare written qualitative/failure-case notes for Milestone 1
+3. decide whether Milestone 1 needs a broader failure taxonomy or can move to Milestone 2
 
 Near-term outputs:
 
 - baseline result interpretation
-- qualitative example/failure-case explanation from the first good/typical/bad panels
+- optional broader failure taxonomy
 - runtime and possible FLOPs/deployment-benchmark notes
 
 ### Friend A
@@ -65,12 +67,12 @@ Expected near-term output:
 ## Blocked / Waiting
 
 1. Friend B’s deeper work depends on a small curated sample pack being prepared.
-2. Baseline evaluation no longer needs final validation/test runs or first validation visual selection, but Milestone 1 still needs written qualitative/failure-case review before it is a complete handoff.
+2. Baseline evaluation no longer needs final validation/test runs, validation/test visual selection, or first written interpretation; remaining Milestone 1 extras are optional depth, FLOPs, or broader taxonomy.
 
 ## Next Review Point
 
 After:
 
 1. the sample pack scaffold is ready for sharing
-2. the selected baseline visual panels have written interpretation notes
+2. the user decides whether Milestone 1 is sufficient or needs optional extras
 3. Friend A has an initial idea shortlist

@@ -744,6 +744,74 @@ raw abs_rel, raw a1, median-scaled abs_rel, median-scaled a1, valid fraction, sc
 
 Then use visual panels to understand what those numbers look like in real images.
 
+### How should I read the good/typical/bad visual panels?
+
+The visual panels are there to make the metrics feel less abstract.
+
+Each panel shows:
+
+1. the RGB image
+2. the model's raw depth prediction
+3. the model's median-scaled depth prediction
+4. the LiDAR depth label on valid pixels
+5. the valid mask
+6. the absolute error after median scaling
+
+For the depth images:
+
+```text
+bright/yellow = nearer
+dark/purple/black = farther
+```
+
+For the error image:
+
+```text
+bright = larger mistake
+dark = smaller mistake
+```
+
+The validation and test examples were selected using `median_scaled_a1`.
+
+The validation examples are:
+
+1. good sample
+   - `a1=0.826`
+   - most valid pixels are close enough after scale correction
+
+2. typical sample
+   - `a1=0.478`
+   - close to the middle behavior of the validation split
+
+3. bad sample
+   - `a1=0.047`
+   - almost no valid pixels are close enough after scale correction
+
+The test examples show the same general spread:
+
+1. good sample
+   - `a1=0.771`
+
+2. typical sample
+   - `a1=0.530`
+
+3. bad sample
+   - `a1=0.076`
+
+The important lesson:
+
+- a smooth-looking depth prediction is not automatically correct
+- the model can make a pretty full-image depth map while still disagreeing with LiDAR in the valid-mask region
+- this is why we need both metrics and visual panels
+
+For our baseline, the visual panels suggest:
+
+1. the original model sometimes gets the broad orchard layout right
+2. it often smooths over vegetation and row structure
+3. it can fail badly around trees, ground boundaries, gaps, and canopy shapes
+
+That is the practical meaning of the Citrus domain gap.
+
 ### What exact values move through Milestone 1 baseline evaluation?
 
 Here is one real validation sample as an example. This is only an example walkthrough, not an official result.

@@ -15,7 +15,9 @@ Current status:
 - Current analysis slice: `analyze_lite_mono_citrus_results.py` selects good/typical/bad samples from the full per-sample CSV and renders visual panels.
 - Full validation/test baseline runs were completed on GPU on 2026-04-28.
 - First validation good/typical/bad visual panels were generated on 2026-04-28.
-- Remaining Milestone 1 work: explain failure patterns, optionally run test-split visual selection, and optionally add FLOPs or a dedicated deployment-speed benchmark.
+- First beginner-friendly visual interpretation note is now available in `visual_interpretation.md`.
+- Test good/typical/bad visual panels were generated on 2026-04-29.
+- Remaining Milestone 1 work: expand failure taxonomy if needed, and optionally add FLOPs or a dedicated deployment-speed benchmark.
 
 Main input dataset:
 
@@ -27,7 +29,7 @@ What this milestone should produce:
 - evaluation against dense LiDAR labels: done for original Lite-Mono
 - valid-mask-aware metrics: done for original Lite-Mono
 - runtime/parameter notes: evaluator-level timing and parameter metadata are saved
-- qualitative examples and failure cases: first validation good/typical/bad panels generated; written failure analysis pending
+- qualitative examples and failure cases: validation and test good/typical/bad panels generated and explained in `visual_interpretation.md`
 
 Current helper commands:
 
@@ -69,6 +71,12 @@ Validation visual-analysis command:
 
 ```powershell
 D:/Conda_Envs/lite-mono/python.exe citrus_project/milestones/01_original_lite_mono_baseline/analyze_lite_mono_citrus_results.py --split val
+```
+
+Test visual-analysis command:
+
+```powershell
+D:/Conda_Envs/lite-mono/python.exe citrus_project/milestones/01_original_lite_mono_baseline/analyze_lite_mono_citrus_results.py --split test
 ```
 
 Current helper behavior:
@@ -119,9 +127,14 @@ Visual-analysis output location:
   - good index 420: `a1=0.8264`, `abs_rel=0.1510`
   - typical index 82: `a1=0.4784`, `abs_rel=0.3405`
   - bad index 442: `a1=0.0468`, `abs_rel=0.7835`
+- test selection by `median_scaled_a1`:
+  - good index 24: `a1=0.7709`, `abs_rel=0.1821`
+  - typical index 7: `a1=0.5301`, `abs_rel=0.3168`
+  - bad index 46: `a1=0.0761`, `abs_rel=0.6204`
 
 Main record files:
 
 - `AGENTS.md`
 - `citrus_project/research/baseline_notes.md`
+- `citrus_project/milestones/01_original_lite_mono_baseline/visual_interpretation.md`
 - `citrus_project/TASK_BOARD.md`
