@@ -31,6 +31,7 @@ Use the project documents with clear roles:
 1. `AGENTS.md` is the source of truth for project goal, current status, milestone progress, pipeline decisions, commands, and repo-impacting changes.
 2. `citrus_project/research/student_qna.md` is the beginner-friendly companion note for recurring questions, plain-language explanations, folder meanings, and stable definitions.
 3. `citrus_project/research/` notes such as dataset-audit summaries and baseline notes are paper-facing research records, not general onboarding notes.
+4. `citrus_project/milestones/*/README.md` files should be teammate-facing milestone handoffs: explain what the milestone tried to answer, what workflow happened, what decisions were made, what beginner questions shaped the work, and where to look for deeper evidence.
 
 Update policy:
 
@@ -81,6 +82,7 @@ Milestone workspace rule:
 1. If new code or notes belong clearly to one milestone, prefer placing them under the matching folder in `citrus_project/milestones/`.
 2. Keep cross-cutting dataset pipeline scripts in `citrus_project/dataset_workspace/`.
 3. Keep cross-cutting paper/support notes in `citrus_project/research/`.
+4. Keep milestone README files readable for teammates who have similar background knowledge to the user; they should bridge between the short global status in `AGENTS.md` and the detailed evidence notes in `citrus_project/research/`.
 
 Current collaboration stance:
 
@@ -786,6 +788,7 @@ Milestone 1 Citrus evaluator:
 - 2026-04-27: Added the Milestone 1 Citrus evaluator entry point `evaluate_lite_mono_citrus.py` with Slice 1 data inspection for prepared split, manifest, RGB, dense LiDAR label, and valid mask loading; model inference and metrics remain next slices.
 - 2026-04-27: Extended the Milestone 1 Citrus evaluator with Slice 2 optional limited-sample original Lite-Mono inference, printing tensor, raw closeness level, scaled disparity, predicted depth, and resized depth summaries while leaving metric computation for the next slice.
 - 2026-04-28: Extended the Milestone 1 Citrus evaluator with Slice 3 one-sample valid-mask-aware depth metrics against dense LiDAR labels, reporting both raw-scale and median-scaled metric rows while leaving full split aggregation/output saving for the next slice.
+- 2026-04-28: Clarified that milestone README files should serve as teammate-facing handoffs, and expanded the Milestone 0 README with a beginner-friendly workflow narrative, key decisions, artifact meanings, and hand-off guidance for Milestone 1.
 
 ## Update Template (Append On Future Changes)
 
