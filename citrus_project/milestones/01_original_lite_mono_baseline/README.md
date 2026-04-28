@@ -9,10 +9,13 @@ Use this folder for milestone-specific helpers, notes, or experiment files relat
 Current status:
 
 - This is the active next milestone.
-- A one-image Lite-Mono sanity demo already exists, but full baseline evaluation has not been completed yet.
+- A one-image Lite-Mono sanity demo already exists as qualitative context only.
 - The Citrus evaluator entry point has started as `evaluate_lite_mono_citrus.py`.
 - Current evaluator slice: data inspection, optional model inference, valid-mask-aware metric comparison, aggregate metric summaries, optional result-file saving, runtime/FPS metadata, and model parameter/checkpoint metadata.
-- Final full validation/test runs are not completed yet.
+- Current analysis slice: `analyze_lite_mono_citrus_results.py` selects good/typical/bad samples from the full per-sample CSV and renders visual panels.
+- Full validation/test baseline runs were completed on GPU on 2026-04-28.
+- First validation good/typical/bad visual panels were generated on 2026-04-28.
+- Remaining Milestone 1 work: explain failure patterns, optionally run test-split visual selection, and optionally add FLOPs or a dedicated deployment-speed benchmark.
 
 Main input dataset:
 
@@ -20,11 +23,11 @@ Main input dataset:
 
 What this milestone should produce:
 
-- baseline inference on Citrus validation/test data
-- evaluation against dense LiDAR labels
-- valid-mask-aware metrics
-- runtime/parameter notes
-- qualitative examples and failure cases
+- baseline inference on Citrus validation/test data: done for original Lite-Mono
+- evaluation against dense LiDAR labels: done for original Lite-Mono
+- valid-mask-aware metrics: done for original Lite-Mono
+- runtime/parameter notes: evaluator-level timing and parameter metadata are saved
+- qualitative examples and failure cases: first validation good/typical/bad panels generated; written failure analysis pending
 
 Current helper commands:
 
@@ -52,6 +55,22 @@ D:/Conda_Envs/lite-mono/python.exe citrus_project/milestones/01_original_lite_mo
 D:/Conda_Envs/lite-mono/python.exe citrus_project/milestones/01_original_lite_mono_baseline/evaluate_lite_mono_citrus.py --split val --max_samples 2 --run_model --summary_only --progress_interval 1 --output_dir citrus_project/milestones/01_original_lite_mono_baseline/results
 ```
 
+Full baseline commands used:
+
+```powershell
+D:/Conda_Envs/lite-mono/python.exe citrus_project/milestones/01_original_lite_mono_baseline/evaluate_lite_mono_citrus.py --split val --max_samples 0 --run_model --summary_only --progress_interval 50 --output_dir citrus_project/milestones/01_original_lite_mono_baseline/results
+```
+
+```powershell
+D:/Conda_Envs/lite-mono/python.exe citrus_project/milestones/01_original_lite_mono_baseline/evaluate_lite_mono_citrus.py --split test --max_samples 0 --run_model --summary_only --progress_interval 50 --output_dir citrus_project/milestones/01_original_lite_mono_baseline/results
+```
+
+Validation visual-analysis command:
+
+```powershell
+D:/Conda_Envs/lite-mono/python.exe citrus_project/milestones/01_original_lite_mono_baseline/analyze_lite_mono_citrus_results.py --split val
+```
+
 Current helper behavior:
 
 - reads the prepared split file
@@ -67,6 +86,7 @@ Current helper behavior:
 - per-sample CSV files include wall-time and model-forward timing columns
 - printed model setup includes encoder, depth-decoder, and total depth-inference parameter counts
 - saved summaries include `model_info` with parameter counts and checkpoint sizes
+- `analyze_lite_mono_citrus_results.py` reads a full per-sample CSV, selects good/typical/bad samples by `median_scaled_a1`, reruns inference for only those samples, and saves visual panels plus selection summaries
 
 Current original `lite-mono` depth-inference model size:
 
@@ -80,6 +100,25 @@ Saved result location:
 
 - `citrus_project/milestones/01_original_lite_mono_baseline/results/`
 - `maxN` smoke result files are ignored by default so they are not mistaken for official full-split results
+- full validation/test result files are:
+  - `val_lite-mono_full_summary.json`
+  - `val_lite-mono_full_per_sample.csv`
+  - `test_lite-mono_full_summary.json`
+  - `test_lite-mono_full_per_sample.csv`
+
+Headline full-split metrics:
+
+- validation: median-scaled `abs_rel=0.4176`, `rmse=3.1642`, `a1=0.4629`, model-forward FPS `28.478`
+- test: median-scaled `abs_rel=0.3836`, `rmse=3.1451`, `a1=0.4989`, model-forward FPS `29.529`
+- raw-scale metrics are much worse, which is expected for a pretrained monocular model with poor absolute scale transfer to Citrus
+
+Visual-analysis output location:
+
+- `citrus_project/milestones/01_original_lite_mono_baseline/visuals/`
+- first validation selection by `median_scaled_a1`:
+  - good index 420: `a1=0.8264`, `abs_rel=0.1510`
+  - typical index 82: `a1=0.4784`, `abs_rel=0.3405`
+  - bad index 442: `a1=0.0468`, `abs_rel=0.7835`
 
 Main record files:
 

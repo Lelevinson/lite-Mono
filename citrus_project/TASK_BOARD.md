@@ -5,8 +5,10 @@ Date: 2026-04-28
 ## Current Project Position
 
 - Milestone 0 is complete through the full dataset build.
-- The next major task is the original Lite-Mono baseline evaluation on Citrus.
+- The original Lite-Mono baseline evaluation has now produced full validation/test result files on Citrus.
 - The Citrus evaluator entry point now supports Slice 1 data inspection, Slice 2 model inference, Slice 3 valid-mask-aware metrics, Slice 4 aggregate metric summaries, Slice 5 optional result-file saving, Slice 6 runtime/FPS metadata, and Slice 7 model parameter/checkpoint metadata.
+- Slice 8 result-interpretation support now selects good/typical/bad validation samples and renders visual panels.
+- The next Milestone 1 work is explaining those visual failure patterns and deciding whether test visuals, FLOPs, or a dedicated deployment-speed benchmark are needed.
 - A small curated sample pack is still needed for Friend B's deeper work.
 
 ## Ownership
@@ -16,14 +18,14 @@ Date: 2026-04-28
 Current focus:
 
 1. maintain the core Citrus pipeline and repo-wide integration
-2. run the original Lite-Mono baseline on the built Citrus split
-3. prepare the path into the true Milestone 1 evaluation/metric workflow
+2. review and explain the original Lite-Mono full Citrus baseline visuals/results
+3. prepare written qualitative/failure-case notes for Milestone 1
 
 Near-term outputs:
 
-- complete baseline evaluation setup beyond the current data-inspection slice
-- first baseline metrics/results
-- runtime and failure-case notes
+- baseline result interpretation
+- qualitative example/failure-case explanation from the first good/typical/bad panels
+- runtime and possible FLOPs/deployment-benchmark notes
 
 ### Friend A
 
@@ -63,12 +65,12 @@ Expected near-term output:
 ## Blocked / Waiting
 
 1. Friend B’s deeper work depends on a small curated sample pack being prepared.
-2. Baseline evaluation no longer needs an entry-point decision, result-file container, runtime metadata path, or parameter metadata path, but it still needs final validation/test runs.
+2. Baseline evaluation no longer needs final validation/test runs or first validation visual selection, but Milestone 1 still needs written qualitative/failure-case review before it is a complete handoff.
 
 ## Next Review Point
 
 After:
 
 1. the sample pack scaffold is ready for sharing
-2. the first baseline evaluation attempt is complete
+2. the selected baseline visual panels have written interpretation notes
 3. Friend A has an initial idea shortlist

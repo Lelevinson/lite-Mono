@@ -669,6 +669,81 @@ That means prediction is within about 25% of the label.
 `a3` uses `1.25^3`.
 So `a3` is more forgiving than `a1`.
 
+### How should I read the full Milestone 1 baseline metrics?
+
+The full baseline result has many numbers, but do not try to understand all of them at once.
+
+Read them in this order:
+
+1. `raw-scale metrics`
+   - asks: "Did the model predict the correct real-world meter scale directly?"
+   - for original Lite-Mono on Citrus, the answer is mostly no
+   - validation raw `abs_rel=0.7128` and raw `a1=0.0195`
+   - plain meaning: before scale correction, almost no valid pixels are close enough
+
+2. `median-scaled metrics`
+   - asks: "If we fix the model's overall scale per image, does the near/far structure look useful?"
+   - validation median-scaled `abs_rel=0.4176` and `a1=0.4629`
+   - plain meaning: after scale correction, about 46% of valid pixels are within the strict 25% threshold on validation
+
+3. `valid fraction`
+   - asks: "How much of the image was actually scored?"
+   - validation mean valid fraction is about `37.2%`
+   - plain meaning: the LiDAR label does not cover every pixel, so metrics are computed only on trusted label pixels
+
+4. `scale ratio`
+   - asks: "How much did median scaling need to multiply the prediction?"
+   - validation median scale ratio is about `3.58`
+   - plain meaning: the raw model prediction was usually too close, so it needed to be stretched farther before median-scaled scoring
+
+5. `runtime/FPS`
+   - asks: "How fast was this evaluator/model path?"
+   - validation model-forward FPS was about `28.48`
+   - plain meaning: the network part ran around 28 frames per second on the user's RTX 4060 Laptop GPU inside this evaluator
+
+The most beginner-useful pair is usually:
+
+```text
+abs_rel = average size of the relative error, lower is better
+a1      = fraction of valid pixels within about 25%, higher is better
+```
+
+For the current full validation baseline:
+
+```text
+raw-scale:      abs_rel=0.7128, a1=0.0195
+median-scaled: abs_rel=0.4176, a1=0.4629
+```
+
+That tells us:
+
+1. the original pretrained model's absolute meter scale transfers badly to Citrus
+2. after scale correction, it has some useful relative structure
+3. but the result is still weak enough to justify Citrus adaptation or a vegetation-focused improvement
+
+The other metrics are still useful, but they are supporting details:
+
+1. `sq_rel`
+   - emphasizes large relative mistakes more than `abs_rel`
+
+2. `rmse`
+   - meter-sized error, but can be dominated by far-depth mistakes
+
+3. `rmse_log`
+   - ratio-style error; less dominated by raw meter distance
+
+4. `a2` and `a3`
+   - more forgiving versions of `a1`
+   - if `a1` is low but `a2`/`a3` are high, the prediction is often directionally close but not precise
+
+For early interpretation, focus on:
+
+```text
+raw abs_rel, raw a1, median-scaled abs_rel, median-scaled a1, valid fraction, scale ratio
+```
+
+Then use visual panels to understand what those numbers look like in real images.
+
 ### What exact values move through Milestone 1 baseline evaluation?
 
 Here is one real validation sample as an example. This is only an example walkthrough, not an official result.

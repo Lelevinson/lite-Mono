@@ -210,3 +210,127 @@ The parameter count includes the encoder and depth decoder used during RGB-only 
 
 This metadata is now saved in summary JSON under `model_info`, so final full-split result files can support both accuracy and lightweight-model reporting.
 
+## Original Lite-Mono Full Citrus Validation/Test Baseline
+
+Date: 2026-04-28
+
+Paper relevance: first real quantitative original Lite-Mono baseline on Citrus. This is stronger evidence than the single-image demo and smoke tests because it evaluates the full validation and test splits against LiDAR-densified labels with valid masks.
+
+Purpose: measure how the original pretrained Lite-Mono baseline behaves on the Citrus prepared dataset before any Citrus adaptation or method improvement.
+
+### Commands
+
+Validation:
+
+```powershell
+D:/Conda_Envs/lite-mono/python.exe citrus_project/milestones/01_original_lite_mono_baseline/evaluate_lite_mono_citrus.py --split val --max_samples 0 --run_model --summary_only --progress_interval 50 --output_dir citrus_project/milestones/01_original_lite_mono_baseline/results
+```
+
+Test:
+
+```powershell
+D:/Conda_Envs/lite-mono/python.exe citrus_project/milestones/01_original_lite_mono_baseline/evaluate_lite_mono_citrus.py --split test --max_samples 0 --run_model --summary_only --progress_interval 50 --output_dir citrus_project/milestones/01_original_lite_mono_baseline/results
+```
+
+### Saved Files
+
+- `citrus_project/milestones/01_original_lite_mono_baseline/results/val_lite-mono_full_summary.json`
+- `citrus_project/milestones/01_original_lite_mono_baseline/results/val_lite-mono_full_per_sample.csv`
+- `citrus_project/milestones/01_original_lite_mono_baseline/results/test_lite-mono_full_summary.json`
+- `citrus_project/milestones/01_original_lite_mono_baseline/results/test_lite-mono_full_per_sample.csv`
+
+### Run Setup
+
+- model: original pretrained `lite-mono`
+- weights: `weights/lite-mono`
+- device: `cuda`
+- GPU observed: NVIDIA GeForce RTX 4060 Laptop GPU
+- input size: 640 x 192
+- model depth conversion range: 0.1 m to 100.0 m
+- evaluation label cap: 0.001 m to 80.0 m
+- averaging rule: compute metrics per image, then average image metrics
+- valid-pixel rule: only score pixels where the dense LiDAR label is valid and inside the evaluation depth range
+
+### Validation Result
+
+- samples evaluated: 564 / 564
+- total valid pixels: 193,500,201
+- mean valid-label coverage: 37.2272%
+- median scale ratio: 3.582965
+- mean scale ratio: 3.713719
+- mean raw-scale metrics: `abs_rel=0.7128`, `sq_rel=2.1823`, `rmse=4.1009`, `rmse_log=1.3642`, `a1=0.0195`, `a2=0.0382`, `a3=0.0669`
+- mean median-scaled metrics: `abs_rel=0.4176`, `sq_rel=1.7692`, `rmse=3.1642`, `rmse_log=0.4834`, `a1=0.4629`, `a2=0.7103`, `a3=0.8494`
+- total run time: 83.274 s
+- model-forward FPS: 28.478
+
+### Test Result
+
+- samples evaluated: 407 / 407
+- total valid pixels: 137,729,923
+- mean valid-label coverage: 36.7190%
+- median scale ratio: 4.374715
+- mean scale ratio: 4.067338
+- mean raw-scale metrics: `abs_rel=0.7273`, `sq_rel=2.3440`, `rmse=4.4517`, `rmse_log=1.4325`, `a1=0.0149`, `a2=0.0288`, `a3=0.0472`
+- mean median-scaled metrics: `abs_rel=0.3836`, `sq_rel=1.5175`, `rmse=3.1451`, `rmse_log=0.4664`, `a1=0.4989`, `a2=0.7264`, `a3=0.8700`
+- total run time: 60.805 s
+- model-forward FPS: 29.529
+
+### Model Metadata
+
+- total depth-inference parameters: 3,074,747
+- encoder parameters: 2,848,120
+- depth-decoder parameters: 226,627
+- total checkpoint size: about 11.94 MiB
+- note: the training-only pose network is not counted because runtime inference is RGB-only
+
+### Interpretation
+
+The raw-scale result is poor: the original pretrained Lite-Mono model predicts Citrus depths at the wrong absolute distance scale. This is expected for monocular depth models trained on a different domain, but it is still important evidence because a robot needs useful distances, not only a pretty depth-shaped image.
+
+Median scaling improves the result by multiplying each predicted depth map so its median valid depth matches the label median. This removes most of the global scale mismatch and asks a narrower question: after scale alignment, does the prediction preserve useful near/far structure? The answer is "partly, but not enough." Median-scaled `a1` is about 0.46 on validation and 0.50 on test, meaning only about half of valid pixels are within the 25% threshold after scale alignment.
+
+The result supports the paper motivation: original lightweight monocular depth transfers imperfectly to vegetation-dense Citrus scenes, so Citrus-specific adaptation or a vegetation-focused improvement is justified.
+
+### Next Use
+
+- Use summary JSON files for baseline result tables.
+- Use per-sample CSV files to find easy/hard frames.
+- Generate qualitative panels later from selected RGB inputs, predictions, LiDAR labels, and valid masks.
+- Treat evaluator timing as a useful first runtime estimate, but use a dedicated benchmark later if the paper needs a clean deployment-speed claim.
+
+## Original Lite-Mono Validation Visual Selection
+
+Date: 2026-04-28
+
+Paper relevance: early qualitative/failure-case support for the original Lite-Mono baseline. These panels are not the final paper figures yet, but they help interpret what the metrics mean in real Citrus images.
+
+Purpose: choose one good, one typical, and one bad validation example from the full per-sample CSV using `median_scaled_a1`, then render visual panels.
+
+### Command
+
+```powershell
+D:/Conda_Envs/lite-mono/python.exe citrus_project/milestones/01_original_lite_mono_baseline/analyze_lite_mono_citrus_results.py --split val
+```
+
+### Outputs
+
+- `citrus_project/milestones/01_original_lite_mono_baseline/visuals/good_index_0420_median_scaled_a1_0.826.png`
+- `citrus_project/milestones/01_original_lite_mono_baseline/visuals/typical_index_0082_median_scaled_a1_0.478.png`
+- `citrus_project/milestones/01_original_lite_mono_baseline/visuals/bad_index_0442_median_scaled_a1_0.047.png`
+- `citrus_project/milestones/01_original_lite_mono_baseline/visuals/val_lite-mono_median_scaled_a1_selection_summary.json`
+- `citrus_project/milestones/01_original_lite_mono_baseline/visuals/val_lite-mono_median_scaled_a1_selection_summary.csv`
+
+### Selected Samples
+
+- good: validation index 420, median-scaled `a1=0.8264`, median-scaled `abs_rel=0.1510`, valid fraction `38.59%`
+- typical: validation index 82, median-scaled `a1=0.4784`, median-scaled `abs_rel=0.3405`, valid fraction `31.80%`
+- bad: validation index 442, median-scaled `a1=0.0468`, median-scaled `abs_rel=0.7835`, valid fraction `34.71%`
+
+### Interpretation
+
+The visual panels show why the average metric is not enough. A prediction can look smooth and visually plausible while still disagreeing strongly with the LiDAR label in the valid-mask area.
+
+The good sample shows that the original model can sometimes preserve useful relative scene geometry after median scaling. The bad sample shows the failure case we care about: the model produces broad smooth depth regions, but the LiDAR label has different depth structure over vegetation, trunks, ground, and row edges.
+
+The next analysis step should describe these failure patterns in simple words and decide whether to generate the same good/typical/bad panels for the test split.
+

@@ -4,6 +4,33 @@ This file tracks research artifacts that may later become paper tables, figures,
 
 ## Strong Candidates
 
+### Original Lite-Mono Full Citrus Baseline
+
+Evidence notes:
+
+- `citrus_project/research/baseline_notes.md`
+- `citrus_project/milestones/01_original_lite_mono_baseline/results/val_lite-mono_full_summary.json`
+- `citrus_project/milestones/01_original_lite_mono_baseline/results/test_lite-mono_full_summary.json`
+
+Why it matters:
+
+- Provides the first full validation/test quantitative baseline for original pretrained Lite-Mono on Citrus.
+- Supports the domain-gap argument: raw absolute scale is poor and median-scaled scores still leave substantial room for improvement.
+- Gives lightweight-model metadata alongside accuracy: 3.075M depth-inference parameters and about 11.94 MiB of checkpoint weights.
+
+Paper section fit:
+
+- Experimental setup
+- Baseline results
+- Motivation for Citrus adaptation / vegetation-focused improvement
+- Efficiency comparison
+
+Current status:
+
+- Full validation and test runs completed on 2026-04-28.
+- First validation good/typical/bad visual panels were generated on 2026-04-28 using `median_scaled_a1`.
+- Needs written failure-case interpretation and possibly test-split visual selection before it is a complete paper package.
+
 ### Dataset/Label Route Selection
 
 Evidence notes:
@@ -97,8 +124,8 @@ Paper section fit:
 Current status:
 
 - Single-image sanity demo only.
-- Not enough for claims or metrics.
-- Needs validation/test split inference and masked evaluation before becoming paper evidence.
+- Quantitative claims should use the full baseline outputs above, not this demo.
+- Still useful as a possible qualitative example source if regenerated consistently with labels and masks.
 
 ## Not Paper Evidence Yet
 
