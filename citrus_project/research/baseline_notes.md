@@ -87,3 +87,61 @@ The raw-scale metrics are poor because the original pretrained model predicts th
 
 Do not report this as the baseline. The next evaluator slice should aggregate the same metrics over the validation/test split and save reproducible outputs.
 
+## Original Lite-Mono Citrus Evaluator Slice 4 Aggregate Smoke Metrics
+
+Date: 2026-04-28
+
+Paper relevance: implementation sanity check only. This is not the full baseline result because it uses only three validation images and does not save result files yet.
+
+Purpose: verify that the Citrus evaluator can accumulate per-image metric rows and print aggregate raw-scale plus median-scaled metric summaries.
+
+### Command
+
+```powershell
+D:/Conda_Envs/lite-mono/python.exe citrus_project/milestones/01_original_lite_mono_baseline/evaluate_lite_mono_citrus.py --split val --max_samples 3 --run_model --summary_only --progress_interval 1 --no_cuda
+```
+
+### One Small Aggregate Output
+
+- requested samples: 3
+- samples with metrics: 3
+- total valid pixels: 1089872
+- mean valid fraction: 39.4196%
+- median scale ratio: 3.290044
+- mean scale ratio: 3.276223
+- mean raw-scale metrics: `abs_rel=0.7083`, `sq_rel=1.7740`, `rmse=4.0042`, `rmse_log=1.3373`, `a1=0.0014`, `a2=0.0034`, `a3=0.0098`
+- mean median-scaled metrics: `abs_rel=0.2061`, `sq_rel=0.5604`, `rmse=3.0122`, `rmse_log=0.3828`, `a1=0.6978`, `a2=0.8520`, `a3=0.9111`
+
+### Interpretation
+
+The aggregation logic now follows the original Lite-Mono evaluation style: compute metrics per image, then average the image metric rows. This prevents images with more valid LiDAR pixels from dominating the score.
+
+The full validation/test baseline is still pending. The next evaluator slice should save reproducible CSV/JSON outputs before the final full-run numbers are treated as results.
+
+## Original Lite-Mono Citrus Evaluator Slice 5 Saved-Result Smoke Check
+
+Date: 2026-04-28
+
+Paper relevance: implementation sanity check only. This confirms result-file saving works, but it is still only a three-image validation smoke run.
+
+Purpose: verify that the evaluator can save the aggregate summary and per-sample metric rows into the Milestone 1 results folder.
+
+### Command
+
+```powershell
+D:/Conda_Envs/lite-mono/python.exe citrus_project/milestones/01_original_lite_mono_baseline/evaluate_lite_mono_citrus.py --split val --max_samples 3 --run_model --summary_only --progress_interval 1 --no_cuda --output_dir citrus_project/milestones/01_original_lite_mono_baseline/results
+```
+
+### Local Generated Files
+
+These smoke files are ignored by the Milestone 1 results folder `.gitignore` because they contain `max3` and are not official full-split results:
+
+- `citrus_project/milestones/01_original_lite_mono_baseline/results/val_lite-mono_max3_summary.json`
+- `citrus_project/milestones/01_original_lite_mono_baseline/results/val_lite-mono_max3_per_sample.csv`
+
+### Interpretation
+
+The summary JSON stores the aggregate run settings and mean metrics. The per-sample CSV stores one row per evaluated image for later hard/easy sample analysis.
+
+The final baseline should be produced later with `--max_samples 0` on the validation and test splits, ideally when GPU is available.
+

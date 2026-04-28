@@ -755,6 +755,86 @@ This is not the official baseline result because it is only one image. It is mai
 1. the raw model scale is far too close for this sample
 2. the relative depth structure becomes much more reasonable after median scaling
 
+### What does it mean to average metrics over a split?
+
+Slice 3 gives metric numbers for one image.
+
+Slice 4 repeats the same operation for many images:
+
+```text
+image 1 -> metric row
+image 2 -> metric row
+image 3 -> metric row
+...
+```
+
+Then it averages the metric rows.
+
+This is called a per-image mean:
+
+```text
+final abs_rel = average(image_1_abs_rel, image_2_abs_rel, image_3_abs_rel, ...)
+```
+
+Why not put all valid pixels from all images into one giant pile?
+
+Because then an image with more valid LiDAR pixels would influence the final score more strongly. The original Lite-Mono evaluator computes one metric row per image and averages those rows, so our Citrus evaluator follows that style.
+
+Simple example:
+
+```text
+image 1 abs_rel = 0.20
+image 2 abs_rel = 0.40
+image 3 abs_rel = 0.30
+```
+
+Per-image mean:
+
+```text
+(0.20 + 0.40 + 0.30) / 3 = 0.30
+```
+
+In the evaluator, `--summary_only` hides the per-image detail and prints the aggregate summary. `--max_samples 0` means "use the whole selected split."
+
+### Why save both summary JSON and per-sample CSV?
+
+The two result files answer different questions.
+
+Summary JSON answers:
+
+```text
+What is the overall result of this run?
+```
+
+It stores things like:
+
+1. split name
+2. number of evaluated samples
+3. valid-pixel coverage
+4. average raw-scale metrics
+5. average median-scaled metrics
+6. run settings such as model, depth range, and device
+
+This is the file we would use later for a paper-style result table.
+
+Per-sample CSV answers:
+
+```text
+Which individual images were easy or hard?
+```
+
+It stores one row per RGB image, including paths and metric values.
+
+This is useful because a single average number does not show failure cases. The CSV lets us sort or inspect samples later, for example:
+
+```text
+show me images with high abs_rel
+show me images with low a1
+show me images with low valid-label coverage
+```
+
+Smoke runs such as `max3` are not official results. They only prove that the code path works.
+
 ### How does the original Lite-Mono learn depth without direct depth labels?
 
 It mainly learns from nearby RGB frames during self-supervised training.

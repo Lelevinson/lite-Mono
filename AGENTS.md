@@ -651,14 +651,14 @@ Current:
 
 1. Milestone 0 is now complete through the full dataset build, with the final/default route and split policy materialized under `prepared_training_dataset/`.
 2. Milestone 1 has started beyond the qualitative demo with a staged Citrus evaluator entry point.
-3. `citrus_project/milestones/01_original_lite_mono_baseline/evaluate_lite_mono_citrus.py` currently implements Slice 1 data inspection, Slice 2 optional limited-sample Lite-Mono inference, and Slice 3 one-sample valid-mask-aware metric comparison.
-4. Full split-level metric aggregation, output saving, and validation/test loops are still pending.
+3. `citrus_project/milestones/01_original_lite_mono_baseline/evaluate_lite_mono_citrus.py` currently implements Slice 1 data inspection, Slice 2 optional Lite-Mono inference, Slice 3 valid-mask-aware metric comparison, Slice 4 aggregate metric summaries, and Slice 5 optional CSV/JSON result saving.
+4. Runtime/parameter reporting and final validation/test baseline runs are still pending.
 5. We now need baseline evaluation code/results plus a small shared sample pack for teammate support work.
 
 Next:
 
-1. Extend `evaluate_lite_mono_citrus.py` from Slice 3 one-sample metrics to full validation/test metric loops and output saving.
-2. Add runtime/parameter reporting for the original Lite-Mono baseline.
+1. Add runtime/parameter reporting for the original Lite-Mono baseline.
+2. Run final validation/test baseline evaluation when the user's GPU is available.
 3. Record baseline metrics, runtime, parameter count, and failure cases for Milestone 1.
 4. Prepare and share a small curated sample pack for Friend B's scene-taxonomy and qualitative-support work.
 
@@ -710,19 +710,32 @@ Milestone 1 Citrus evaluator:
    - `D:/Conda_Envs/lite-mono/python.exe citrus_project/milestones/01_original_lite_mono_baseline/evaluate_lite_mono_citrus.py --split val --max_samples 3`
 2. Slice 2 and Slice 3 limited-sample model inference plus one-sample valid-mask-aware metrics from repo root:
    - `D:/Conda_Envs/lite-mono/python.exe citrus_project/milestones/01_original_lite_mono_baseline/evaluate_lite_mono_citrus.py --split val --max_samples 1 --run_model --no_cuda`
-3. Current Slice 1 behavior:
+3. Slice 4 aggregate summary smoke run:
+   - `D:/Conda_Envs/lite-mono/python.exe citrus_project/milestones/01_original_lite_mono_baseline/evaluate_lite_mono_citrus.py --split val --max_samples 3 --run_model --summary_only --progress_interval 1 --no_cuda`
+4. Slice 4 full-split aggregate command pattern:
+   - `D:/Conda_Envs/lite-mono/python.exe citrus_project/milestones/01_original_lite_mono_baseline/evaluate_lite_mono_citrus.py --split val --max_samples 0 --run_model --summary_only`
+5. Slice 5 saved-result smoke run:
+   - `D:/Conda_Envs/lite-mono/python.exe citrus_project/milestones/01_original_lite_mono_baseline/evaluate_lite_mono_citrus.py --split val --max_samples 3 --run_model --summary_only --progress_interval 1 --no_cuda --output_dir citrus_project/milestones/01_original_lite_mono_baseline/results`
+6. Current Slice 1 behavior:
    - reads `prepared_training_dataset/splits/<split>_pairs.txt`
    - joins split entries with `prepared_training_dataset/metrics/all_samples.csv`
    - prints RGB size, dense-label shape/stats, valid-mask shape/stats, valid-pixel ratio, and pairing diagnostics
-4. Current Slice 2 behavior:
+7. Current Slice 2 behavior:
    - loads `weights/lite-mono`
    - runs original Lite-Mono on selected RGB samples
    - prints input tensor, raw closeness level, scaled disparity, predicted depth, and resized depth summaries
-5. Current Slice 3 behavior:
+8. Current Slice 3 behavior:
    - compares resized predicted depth against LiDAR-densified labels only on valid-mask pixels
    - uses evaluation label depth cap `eval_min_depth=0.001` and `eval_max_depth=80.0` by default, matching the original Lite-Mono/KITTI evaluation convention
    - prints raw-scale and median-scaled one-sample metrics: `abs_rel`, `sq_rel`, `rmse`, `rmse_log`, `a1`, `a2`, and `a3`
-   - does not yet aggregate metrics across a full split or save outputs
+9. Current Slice 4 behavior:
+   - uses per-image metric means for aggregate summaries, matching original Lite-Mono evaluation style
+   - supports `--summary_only` to suppress per-sample details during multi-sample runs
+   - supports `--max_samples 0` or less to evaluate the full selected split
+10. Current Slice 5 behavior:
+   - supports `--output_dir` to save one aggregate `*_summary.json` file and one `*_per_sample.csv` file
+   - stores result outputs under `citrus_project/milestones/01_original_lite_mono_baseline/results/` when that folder is passed as `--output_dir`
+   - ignores `maxN` smoke-result JSON/CSV files by default so they are not mistaken for official full-split results
 
 ## Change Log
 
@@ -789,6 +802,8 @@ Milestone 1 Citrus evaluator:
 - 2026-04-27: Extended the Milestone 1 Citrus evaluator with Slice 2 optional limited-sample original Lite-Mono inference, printing tensor, raw closeness level, scaled disparity, predicted depth, and resized depth summaries while leaving metric computation for the next slice.
 - 2026-04-28: Extended the Milestone 1 Citrus evaluator with Slice 3 one-sample valid-mask-aware depth metrics against dense LiDAR labels, reporting both raw-scale and median-scaled metric rows while leaving full split aggregation/output saving for the next slice.
 - 2026-04-28: Clarified that milestone README files should serve as teammate-facing handoffs, and expanded the Milestone 0 README with a beginner-friendly workflow narrative, key decisions, artifact meanings, and hand-off guidance for Milestone 1.
+- 2026-04-28: Extended the Milestone 1 Citrus evaluator with Slice 4 aggregate metric summaries over selected or full splits, using per-image metric means, `--summary_only`, progress logging, and `--max_samples 0` for full-split evaluation; result-file saving remains pending.
+- 2026-04-28: Extended the Milestone 1 Citrus evaluator with Slice 5 optional saved outputs via `--output_dir`, writing aggregate summary JSON and per-sample CSV files; added a Milestone 1 results folder README and ignored `maxN` smoke outputs so full-split results can be reviewed separately.
 
 ## Update Template (Append On Future Changes)
 

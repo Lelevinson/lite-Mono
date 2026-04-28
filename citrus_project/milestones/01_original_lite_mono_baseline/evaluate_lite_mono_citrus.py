@@ -1,6 +1,8 @@
 import argparse
 import csv
+import json
 import sys
+from datetime import datetime
 from pathlib import Path
 from typing import Callable, Dict, List, NamedTuple, Optional, Tuple
 
@@ -20,6 +22,20 @@ class LiteMonoModel(NamedTuple):
     feed_width: int
     min_depth: float
     max_depth: float
+
+
+class EvaluationResult(NamedTuple):
+    index: int
+    rgb_rel: str
+    dense_rel: str
+    valid_mask_rel: str
+    valid_count: int
+    valid_fraction: float
+    gt_median: float
+    pred_median: float
+    scale_ratio: Optional[float]
+    raw_metrics: Dict[str, float]
+    scaled_metrics: Optional[Dict[str, float]]
 
 
 def repo_root() -> Path:
@@ -99,6 +115,142 @@ def format_depth_metrics(metrics: Dict[str, float]) -> str:
     return ", ".join(f"{name}={metrics[name]:.4f}" for name in DEPTH_METRIC_NAMES)
 
 
+def mean_depth_metrics(rows: List[Dict[str, float]]) -> Dict[str, float]:
+    return {
+        name: float(np.mean([row[name] for row in rows]))
+        for name in DEPTH_METRIC_NAMES
+    }
+
+
+def build_aggregate_summary(
+    results: List[EvaluationResult],
+    requested_count: int,
+) -> Dict[str, object]:
+    summary: Dict[str, object] = {
+        "requested_samples": requested_count,
+        "samples_with_metrics": len(results),
+        "averaging_rule": "per_image_metric_mean",
+    }
+    if not results:
+        return summary
+
+    scale_ratios = [
+        result.scale_ratio
+        for result in results
+        if result.scale_ratio is not None and np.isfinite(result.scale_ratio)
+    ]
+    scaled_rows = [
+        result.scaled_metrics for result in results if result.scaled_metrics is not None
+    ]
+
+    summary.update(
+        {
+            "total_valid_pixels": int(sum(result.valid_count for result in results)),
+            "mean_valid_fraction": float(
+                np.mean([result.valid_fraction for result in results])
+            ),
+            "median_scale_ratio": (
+                float(np.median(scale_ratios)) if scale_ratios else None
+            ),
+            "mean_scale_ratio": float(np.mean(scale_ratios)) if scale_ratios else None,
+            "mean_raw_metrics": mean_depth_metrics(
+                [result.raw_metrics for result in results]
+            ),
+            "mean_median_scaled_metrics": (
+                mean_depth_metrics(scaled_rows) if scaled_rows else None
+            ),
+        }
+    )
+    return summary
+
+
+def result_to_csv_row(result: EvaluationResult) -> Dict[str, object]:
+    row: Dict[str, object] = {
+        "index": result.index,
+        "rgb_rel": result.rgb_rel,
+        "dense_rel": result.dense_rel,
+        "valid_mask_rel": result.valid_mask_rel,
+        "valid_count": result.valid_count,
+        "valid_fraction": result.valid_fraction,
+        "gt_median": result.gt_median,
+        "pred_median": result.pred_median,
+        "scale_ratio": result.scale_ratio,
+    }
+    for name in DEPTH_METRIC_NAMES:
+        row[f"raw_{name}"] = result.raw_metrics[name]
+        row[f"median_scaled_{name}"] = (
+            result.scaled_metrics[name] if result.scaled_metrics is not None else None
+        )
+    return row
+
+
+def save_results(
+    output_dir: Path,
+    args: argparse.Namespace,
+    model: Optional[LiteMonoModel],
+    workspace_dir: Path,
+    prepared_dir: Path,
+    results: List[EvaluationResult],
+    requested_count: int,
+    split_count: int,
+) -> Tuple[Path, Path]:
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    sample_tag = "full" if args.max_samples <= 0 else f"max{args.max_samples}"
+    model_tag = args.model.replace("/", "_")
+    prefix = f"{args.split}_{model_tag}_{sample_tag}"
+    summary_path = output_dir / f"{prefix}_summary.json"
+    per_sample_path = output_dir / f"{prefix}_per_sample.csv"
+
+    summary = build_aggregate_summary(results, requested_count)
+    summary.update(
+        {
+            "created_at": datetime.now().isoformat(timespec="seconds"),
+            "split": args.split,
+            "split_samples": split_count,
+            "max_samples_arg": args.max_samples,
+            "model": args.model,
+            "weights_folder": str(args.weights_folder.resolve()),
+            "device": str(model.device) if model is not None else None,
+            "feed_width": model.feed_width if model is not None else None,
+            "feed_height": model.feed_height if model is not None else None,
+            "model_min_depth": args.min_depth,
+            "model_max_depth": args.max_depth,
+            "eval_min_depth": args.eval_min_depth,
+            "eval_max_depth": args.eval_max_depth,
+            "dataset_workspace": str(workspace_dir),
+            "prepared_dataset": str(prepared_dir),
+        }
+    )
+
+    with summary_path.open("w", encoding="utf-8") as fp:
+        json.dump(summary, fp, indent=2)
+        fp.write("\n")
+
+    rows = [result_to_csv_row(result) for result in results]
+    fieldnames = [
+        "index",
+        "rgb_rel",
+        "dense_rel",
+        "valid_mask_rel",
+        "valid_count",
+        "valid_fraction",
+        "gt_median",
+        "pred_median",
+        "scale_ratio",
+    ]
+    for name in DEPTH_METRIC_NAMES:
+        fieldnames.append(f"raw_{name}")
+        fieldnames.append(f"median_scaled_{name}")
+
+    with per_sample_path.open("w", newline="", encoding="utf-8") as fp:
+        writer = csv.DictWriter(fp, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(rows)
+
+    return summary_path, per_sample_path
+
+
 def ensure_repo_imports(root: Path) -> None:
     root_str = str(root)
     if root_str not in sys.path:
@@ -169,7 +321,10 @@ def image_to_input_tensor(image: Image.Image, model: LiteMonoModel):
 
 
 def run_lite_mono_inference(
-    rgb_path: Path, label_shape: Tuple[int, int], model: LiteMonoModel
+    rgb_path: Path,
+    label_shape: Tuple[int, int],
+    model: LiteMonoModel,
+    print_details: bool,
 ) -> np.ndarray:
     import torch
     import torch.nn.functional as F
@@ -198,35 +353,36 @@ def run_lite_mono_inference(
     depth_np = depth.detach().cpu().numpy()
     depth_resized_np = depth_resized.detach().cpu().numpy()
 
-    print("  Model inference:")
-    print(
-        "    Input tensor: "
-        f"shape={tuple(input_tensor.shape)}, "
-        f"dtype={input_tensor.dtype}, "
-        f"device={input_tensor.device}, "
-        f"range={float(input_tensor.min()):.6f}..{float(input_tensor.max()):.6f}"
-    )
-    print(
-        "    Original RGB size: "
-        f"width={original_width}, height={original_height}; "
-        f"model feed size: width={model.feed_width}, height={model.feed_height}"
-    )
-    print(
-        "    Raw closeness level: "
-        f"shape={tuple(raw_disp.shape)}, {format_stats(finite_stats(raw_disp_np))}"
-    )
-    print(
-        "    Scaled disparity:   "
-        f"shape={tuple(scaled_disp.shape)}, {format_stats(finite_stats(scaled_disp_np))}"
-    )
-    print(
-        "    Predicted depth:    "
-        f"shape={tuple(depth.shape)}, {format_stats(finite_stats(depth_np))}"
-    )
-    print(
-        "    Resized depth:      "
-        f"shape={tuple(depth_resized.shape)}, {format_stats(finite_stats(depth_resized_np))}"
-    )
+    if print_details:
+        print("  Model inference:")
+        print(
+            "    Input tensor: "
+            f"shape={tuple(input_tensor.shape)}, "
+            f"dtype={input_tensor.dtype}, "
+            f"device={input_tensor.device}, "
+            f"range={float(input_tensor.min()):.6f}..{float(input_tensor.max()):.6f}"
+        )
+        print(
+            "    Original RGB size: "
+            f"width={original_width}, height={original_height}; "
+            f"model feed size: width={model.feed_width}, height={model.feed_height}"
+        )
+        print(
+            "    Raw closeness level: "
+            f"shape={tuple(raw_disp.shape)}, {format_stats(finite_stats(raw_disp_np))}"
+        )
+        print(
+            "    Scaled disparity:   "
+            f"shape={tuple(scaled_disp.shape)}, {format_stats(finite_stats(scaled_disp_np))}"
+        )
+        print(
+            "    Predicted depth:    "
+            f"shape={tuple(depth.shape)}, {format_stats(finite_stats(depth_np))}"
+        )
+        print(
+            "    Resized depth:      "
+            f"shape={tuple(depth_resized.shape)}, {format_stats(finite_stats(depth_resized_np))}"
+        )
     return depth_resized_np[0, 0]
 
 
@@ -236,7 +392,8 @@ def evaluate_prediction_against_label(
     pred_depth: np.ndarray,
     eval_min_depth: float,
     eval_max_depth: float,
-) -> None:
+    print_details: bool,
+) -> Optional[EvaluationResult]:
     eval_mask = (
         (valid_mask > 0)
         & np.isfinite(dense)
@@ -247,16 +404,19 @@ def evaluate_prediction_against_label(
     )
 
     valid_count = int(np.count_nonzero(eval_mask))
-    print(
-        "  Evaluation mask: "
-        f"{valid_count}/{dense.size} "
-        f"({valid_count / dense.size:.4%}) after valid mask and "
-        f"{eval_min_depth}..{eval_max_depth} m label cap"
-    )
+    valid_fraction = valid_count / dense.size
+    if print_details:
+        print(
+            "  Evaluation mask: "
+            f"{valid_count}/{dense.size} "
+            f"({valid_fraction:.4%}) after valid mask and "
+            f"{eval_min_depth}..{eval_max_depth} m label cap"
+        )
 
     if valid_count == 0:
-        print("  Depth metrics: skipped because no valid comparison pixels remain")
-        return
+        if print_details:
+            print("  Depth metrics: skipped because no valid comparison pixels remain")
+        return None
 
     gt_eval = dense[eval_mask].astype(np.float64)
     pred_eval = pred_depth[eval_mask].astype(np.float64)
@@ -270,20 +430,91 @@ def evaluate_prediction_against_label(
         scale_ratio = gt_median / pred_median
 
     ratio_text = f"{scale_ratio:.6f}" if scale_ratio is not None else "n/a"
-    print(
-        "  Metric medians: "
-        f"label={gt_median:.6f} m, raw_pred={pred_median:.6f} m, "
-        f"median_scale_ratio={ratio_text}"
-    )
-    print(f"  Raw-scale metrics:        {format_depth_metrics(raw_metrics)}")
+    if print_details:
+        print(
+            "  Metric medians: "
+            f"label={gt_median:.6f} m, raw_pred={pred_median:.6f} m, "
+            f"median_scale_ratio={ratio_text}"
+        )
+        print(f"  Raw-scale metrics:        {format_depth_metrics(raw_metrics)}")
 
     if scale_ratio is None:
-        print("  Median-scaled metrics:    skipped because scale ratio is invalid")
-        return
+        if print_details:
+            print("  Median-scaled metrics:    skipped because scale ratio is invalid")
+        return EvaluationResult(
+            index=-1,
+            rgb_rel="",
+            dense_rel="",
+            valid_mask_rel="",
+            valid_count=valid_count,
+            valid_fraction=valid_fraction,
+            gt_median=gt_median,
+            pred_median=pred_median,
+            scale_ratio=scale_ratio,
+            raw_metrics=raw_metrics,
+            scaled_metrics=None,
+        )
 
     pred_scaled = np.clip(pred_eval * scale_ratio, eval_min_depth, eval_max_depth)
     scaled_metrics = compute_depth_errors_np(gt_eval, pred_scaled)
-    print(f"  Median-scaled metrics:    {format_depth_metrics(scaled_metrics)}")
+    if print_details:
+        print(f"  Median-scaled metrics:    {format_depth_metrics(scaled_metrics)}")
+
+    return EvaluationResult(
+        index=-1,
+        rgb_rel="",
+        dense_rel="",
+        valid_mask_rel="",
+        valid_count=valid_count,
+        valid_fraction=valid_fraction,
+        gt_median=gt_median,
+        pred_median=pred_median,
+        scale_ratio=scale_ratio,
+        raw_metrics=raw_metrics,
+        scaled_metrics=scaled_metrics,
+    )
+
+
+def print_aggregate_summary(
+    results: List[EvaluationResult],
+    requested_count: int,
+) -> None:
+    print("\nAggregate evaluation summary")
+    print("  Averaging rule: per-image metric mean, matching original Lite-Mono evaluation style")
+    print(f"  Requested samples:        {requested_count}")
+    print(f"  Samples with metrics:     {len(results)}")
+
+    if not results:
+        print("  No valid metric rows were produced.")
+        return
+
+    total_valid_pixels = sum(result.valid_count for result in results)
+    mean_valid_fraction = float(np.mean([result.valid_fraction for result in results]))
+    print(f"  Total valid pixels:       {total_valid_pixels}")
+    print(f"  Mean valid fraction:      {mean_valid_fraction:.4%}")
+
+    scale_ratios = [
+        result.scale_ratio
+        for result in results
+        if result.scale_ratio is not None and np.isfinite(result.scale_ratio)
+    ]
+    if scale_ratios:
+        print(f"  Median scale ratio:       {float(np.median(scale_ratios)):.6f}")
+        print(f"  Mean scale ratio:         {float(np.mean(scale_ratios)):.6f}")
+    else:
+        print("  Scale ratios:             none valid")
+
+    raw_means = mean_depth_metrics([result.raw_metrics for result in results])
+    print(f"  Mean raw-scale metrics:   {format_depth_metrics(raw_means)}")
+
+    scaled_rows = [
+        result.scaled_metrics for result in results if result.scaled_metrics is not None
+    ]
+    if scaled_rows:
+        scaled_means = mean_depth_metrics(scaled_rows)
+        print(f"  Mean median-scaled metrics: {format_depth_metrics(scaled_means)}")
+    else:
+        print("  Mean median-scaled metrics: skipped because no scale ratios were valid")
 
 
 def inspect_sample(
@@ -295,7 +526,8 @@ def inspect_sample(
     model: Optional[LiteMonoModel],
     eval_min_depth: float,
     eval_max_depth: float,
-) -> None:
+    print_details: bool,
+) -> Optional[EvaluationResult]:
     if rgb_rel not in manifest:
         raise KeyError(f"{rgb_rel} is present in split file but missing from all_samples.csv")
 
@@ -313,39 +545,54 @@ def inspect_sample(
     dense_path = workspace_dir / dense_rel
     valid_mask_path = workspace_dir / valid_mask_rel
 
-    with Image.open(rgb_path) as image:
-        rgb_size = image.size
+    rgb_size = None
+    if print_details:
+        with Image.open(rgb_path) as image:
+            rgb_size = image.size
 
     dense = load_npz_array(dense_path)
     valid_mask = load_npz_array(valid_mask_path)
     valid = (valid_mask > 0) & np.isfinite(dense) & (dense > 0)
     valid_depths = dense[valid]
 
-    print(f"\nSample {index}")
-    print(f"  RGB:        {rgb_rel}")
-    print(f"  Dense:      {dense_rel}")
-    print(f"  Valid mask: {valid_mask_rel}")
-    print(f"  RGB size:   width={rgb_size[0]}, height={rgb_size[1]}")
-    print(f"  Dense:      shape={dense.shape}, dtype={dense.dtype}")
-    print(f"  Mask:       shape={valid_mask.shape}, dtype={valid_mask.dtype}")
-    print(f"  Dense all finite stats:   {format_stats(finite_stats(dense))}")
-    print(f"  Dense valid-mask stats:   {format_stats(finite_stats(valid_depths))}")
-    print(
-        "  Valid pixels: "
-        f"{int(np.count_nonzero(valid))}/{dense.size} "
-        f"({np.count_nonzero(valid) / dense.size:.4%})"
-    )
-    print(f"  Pair delta ms: {row.get('time_delta_ms', 'n/a')}")
-    print(f"  Dense fill ratio from manifest: {row.get('dense_fill_ratio', 'n/a')}")
+    if print_details:
+        print(f"\nSample {index}")
+        print(f"  RGB:        {rgb_rel}")
+        print(f"  Dense:      {dense_rel}")
+        print(f"  Valid mask: {valid_mask_rel}")
+        print(f"  RGB size:   width={rgb_size[0]}, height={rgb_size[1]}")
+        print(f"  Dense:      shape={dense.shape}, dtype={dense.dtype}")
+        print(f"  Mask:       shape={valid_mask.shape}, dtype={valid_mask.dtype}")
+        print(f"  Dense all finite stats:   {format_stats(finite_stats(dense))}")
+        print(f"  Dense valid-mask stats:   {format_stats(finite_stats(valid_depths))}")
+        print(
+            "  Valid pixels: "
+            f"{int(np.count_nonzero(valid))}/{dense.size} "
+            f"({np.count_nonzero(valid) / dense.size:.4%})"
+        )
+        print(f"  Pair delta ms: {row.get('time_delta_ms', 'n/a')}")
+        print(f"  Dense fill ratio from manifest: {row.get('dense_fill_ratio', 'n/a')}")
     if model is not None:
-        pred_depth = run_lite_mono_inference(rgb_path, dense.shape, model)
-        evaluate_prediction_against_label(
+        pred_depth = run_lite_mono_inference(
+            rgb_path, dense.shape, model, print_details=print_details
+        )
+        result = evaluate_prediction_against_label(
             dense=dense,
             valid_mask=valid_mask,
             pred_depth=pred_depth,
             eval_min_depth=eval_min_depth,
             eval_max_depth=eval_max_depth,
+            print_details=print_details,
         )
+        if result is None:
+            return None
+        return result._replace(
+            index=index,
+            rgb_rel=rgb_rel,
+            dense_rel=dense_rel,
+            valid_mask_rel=valid_mask_rel,
+        )
+    return None
 
 
 def parse_args() -> argparse.Namespace:
@@ -374,7 +621,7 @@ def parse_args() -> argparse.Namespace:
         "--max_samples",
         type=int,
         default=3,
-        help="Number of samples to inspect from the selected split.",
+        help="Number of samples to inspect from the selected split; use 0 or less for the full split.",
     )
     parser.add_argument(
         "--run_model",
@@ -422,6 +669,23 @@ def parse_args() -> argparse.Namespace:
         default=80.0,
         help="Maximum label depth kept for metric evaluation, matching Lite-Mono/KITTI convention.",
     )
+    parser.add_argument(
+        "--summary_only",
+        action="store_true",
+        help="Suppress per-sample details and print only aggregate metric summary.",
+    )
+    parser.add_argument(
+        "--progress_interval",
+        type=int,
+        default=50,
+        help="When --summary_only is used, print progress every N samples.",
+    )
+    parser.add_argument(
+        "--output_dir",
+        type=Path,
+        default=None,
+        help="Optional folder for summary JSON and per-sample CSV result files.",
+    )
     return parser.parse_args()
 
 
@@ -434,7 +698,7 @@ def main() -> None:
 
     manifest = load_manifest(manifest_path)
     pairs = load_split_pairs(split_path)
-    selected_pairs = pairs[: args.max_samples]
+    selected_pairs = pairs if args.max_samples <= 0 else pairs[: args.max_samples]
 
     model = None
     if args.run_model:
@@ -454,6 +718,8 @@ def main() -> None:
     print(f"  Inspecting:        {len(selected_pairs)}")
     print(f"  Manifest rows:     {len(manifest)}")
     print(f"  Model inference:   {'enabled' if model is not None else 'disabled'}")
+    print(f"  Summary only:      {args.summary_only}")
+    print(f"  Output dir:        {args.output_dir.resolve() if args.output_dir else 'disabled'}")
     if model is not None:
         print(f"  Weights folder:    {args.weights_folder.resolve()}")
         print(f"  Model variant:     {args.model}")
@@ -462,8 +728,9 @@ def main() -> None:
         print(f"  Depth range:       {model.min_depth}..{model.max_depth} m")
         print(f"  Eval depth range:  {args.eval_min_depth}..{args.eval_max_depth} m")
 
+    results = []
     for index, (rgb_rel, dense_rel) in enumerate(selected_pairs, start=1):
-        inspect_sample(
+        result = inspect_sample(
             index,
             rgb_rel,
             dense_rel,
@@ -472,7 +739,33 @@ def main() -> None:
             model,
             args.eval_min_depth,
             args.eval_max_depth,
+            print_details=not args.summary_only,
         )
+        if result is not None:
+            results.append(result)
+        if (
+            args.summary_only
+            and args.progress_interval > 0
+            and index % args.progress_interval == 0
+        ):
+            print(f"  Processed {index}/{len(selected_pairs)} samples")
+
+    if model is not None:
+        print_aggregate_summary(results, len(selected_pairs))
+        if args.output_dir is not None:
+            summary_path, per_sample_path = save_results(
+                output_dir=args.output_dir.resolve(),
+                args=args,
+                model=model,
+                workspace_dir=workspace_dir,
+                prepared_dir=prepared_dir,
+                results=results,
+                requested_count=len(selected_pairs),
+                split_count=len(pairs),
+            )
+            print("\nSaved result files")
+            print(f"  Summary JSON:    {summary_path}")
+            print(f"  Per-sample CSV:  {per_sample_path}")
 
 
 if __name__ == "__main__":
