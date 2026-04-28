@@ -145,3 +145,39 @@ The summary JSON stores the aggregate run settings and mean metrics. The per-sam
 
 The final baseline should be produced later with `--max_samples 0` on the validation and test splits, ideally when GPU is available.
 
+## Original Lite-Mono Citrus Evaluator Slice 6 Runtime/FPS Smoke Check
+
+Date: 2026-04-28
+
+Paper relevance: timing pipeline sanity check only. This confirms runtime metadata is saved, but it is not a final deployment benchmark.
+
+Purpose: verify that the evaluator records both end-to-end evaluator timing and synchronized model-forward timing in the saved result files.
+
+### Command
+
+```powershell
+D:/Conda_Envs/lite-mono/python.exe citrus_project/milestones/01_original_lite_mono_baseline/evaluate_lite_mono_citrus.py --split val --max_samples 3 --run_model --summary_only --progress_interval 1 --output_dir citrus_project/milestones/01_original_lite_mono_baseline/results
+```
+
+### GPU Visibility
+
+- CUDA available: yes
+- device: NVIDIA GeForce RTX 4060 Laptop GPU
+
+### Smoke Timing Output
+
+For the three-image validation smoke run:
+
+- device: `cuda`
+- model load seconds: 6.167
+- evaluation loop seconds: 1.556
+- total run seconds: 7.800
+- metric samples per second: 1.928
+- model forward FPS: 2.706
+
+### Interpretation
+
+The first GPU sample includes CUDA warmup overhead, so this small `max3` run should not be used as the paper's FPS result. It only proves that timing fields are now recorded.
+
+The full validation/test run will give a more stable evaluator-level timing estimate, but a dedicated deployment benchmark may still be needed later for a clean robot-runtime/FPS claim.
+

@@ -11,8 +11,8 @@ Current status:
 - This is the active next milestone.
 - A one-image Lite-Mono sanity demo already exists, but full baseline evaluation has not been completed yet.
 - The Citrus evaluator entry point has started as `evaluate_lite_mono_citrus.py`.
-- Current evaluator slice: data inspection, optional model inference, valid-mask-aware metric comparison, aggregate metric summaries, and optional result-file saving.
-- Runtime reporting, parameter reporting, and final full validation/test runs are not completed yet.
+- Current evaluator slice: data inspection, optional model inference, valid-mask-aware metric comparison, aggregate metric summaries, optional result-file saving, and runtime/FPS metadata.
+- Parameter reporting and final full validation/test runs are not completed yet.
 
 Main input dataset:
 
@@ -44,6 +44,10 @@ D:/Conda_Envs/lite-mono/python.exe citrus_project/milestones/01_original_lite_mo
 D:/Conda_Envs/lite-mono/python.exe citrus_project/milestones/01_original_lite_mono_baseline/evaluate_lite_mono_citrus.py --split val --max_samples 3 --run_model --summary_only --progress_interval 1 --no_cuda --output_dir citrus_project/milestones/01_original_lite_mono_baseline/results
 ```
 
+```powershell
+D:/Conda_Envs/lite-mono/python.exe citrus_project/milestones/01_original_lite_mono_baseline/evaluate_lite_mono_citrus.py --split val --max_samples 3 --run_model --summary_only --progress_interval 1 --output_dir citrus_project/milestones/01_original_lite_mono_baseline/results
+```
+
 Current helper behavior:
 
 - reads the prepared split file
@@ -55,6 +59,8 @@ Current helper behavior:
 - with `--summary_only`, suppresses per-sample detail and prints aggregate metric summaries using per-image metric means
 - with `--max_samples 0`, evaluates the full selected split
 - with `--output_dir`, saves one aggregate `*_summary.json` file and one `*_per_sample.csv` file
+- saved summaries include evaluator-loop timing and synchronized model-forward timing/FPS
+- per-sample CSV files include wall-time and model-forward timing columns
 
 Saved result location:
 

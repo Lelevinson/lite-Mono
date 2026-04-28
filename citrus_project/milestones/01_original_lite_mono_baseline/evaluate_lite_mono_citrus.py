@@ -2,6 +2,7 @@ import argparse
 import csv
 import json
 import sys
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import Callable, Dict, List, NamedTuple, Optional, Tuple
@@ -34,6 +35,8 @@ class EvaluationResult(NamedTuple):
     gt_median: float
     pred_median: float
     scale_ratio: Optional[float]
+    sample_wall_seconds: float
+    model_forward_seconds: Optional[float]
     raw_metrics: Dict[str, float]
     scaled_metrics: Optional[Dict[str, float]]
 
@@ -125,12 +128,15 @@ def mean_depth_metrics(rows: List[Dict[str, float]]) -> Dict[str, float]:
 def build_aggregate_summary(
     results: List[EvaluationResult],
     requested_count: int,
+    timing: Optional[Dict[str, object]] = None,
 ) -> Dict[str, object]:
     summary: Dict[str, object] = {
         "requested_samples": requested_count,
         "samples_with_metrics": len(results),
         "averaging_rule": "per_image_metric_mean",
     }
+    if timing is not None:
+        summary["timing"] = timing
     if not results:
         return summary
 
@@ -164,6 +170,53 @@ def build_aggregate_summary(
     return summary
 
 
+def rate(count: int, seconds: Optional[float]) -> Optional[float]:
+    if seconds is None or seconds <= 0:
+        return None
+    return count / seconds
+
+
+def build_timing_summary(
+    results: List[EvaluationResult],
+    requested_count: int,
+    model_load_seconds: Optional[float],
+    evaluation_loop_seconds: float,
+    total_run_seconds: float,
+) -> Dict[str, object]:
+    model_forward_times = [
+        result.model_forward_seconds
+        for result in results
+        if result.model_forward_seconds is not None
+    ]
+    total_model_forward_seconds = (
+        float(np.sum(model_forward_times)) if model_forward_times else None
+    )
+
+    return {
+        "model_load_seconds": model_load_seconds,
+        "evaluation_loop_seconds": evaluation_loop_seconds,
+        "total_run_seconds": total_run_seconds,
+        "requested_samples_per_second": rate(requested_count, evaluation_loop_seconds),
+        "metric_samples_per_second": rate(len(results), evaluation_loop_seconds),
+        "mean_sample_wall_seconds": (
+            float(np.mean([result.sample_wall_seconds for result in results]))
+            if results
+            else None
+        ),
+        "total_model_forward_seconds": total_model_forward_seconds,
+        "mean_model_forward_seconds": (
+            float(np.mean(model_forward_times)) if model_forward_times else None
+        ),
+        "model_forward_fps": rate(
+            len(model_forward_times), total_model_forward_seconds
+        ),
+        "timing_note": (
+            "evaluation_loop includes image/label loading, inference, resizing, and metrics; "
+            "model_forward includes encoder, decoder, disparity-depth conversion, and output resize."
+        ),
+    }
+
+
 def result_to_csv_row(result: EvaluationResult) -> Dict[str, object]:
     row: Dict[str, object] = {
         "index": result.index,
@@ -175,6 +228,9 @@ def result_to_csv_row(result: EvaluationResult) -> Dict[str, object]:
         "gt_median": result.gt_median,
         "pred_median": result.pred_median,
         "scale_ratio": result.scale_ratio,
+        "sample_wall_seconds": result.sample_wall_seconds,
+        "model_forward_seconds": result.model_forward_seconds,
+        "model_forward_fps": rate(1, result.model_forward_seconds),
     }
     for name in DEPTH_METRIC_NAMES:
         row[f"raw_{name}"] = result.raw_metrics[name]
@@ -193,6 +249,7 @@ def save_results(
     results: List[EvaluationResult],
     requested_count: int,
     split_count: int,
+    timing: Dict[str, object],
 ) -> Tuple[Path, Path]:
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -202,7 +259,7 @@ def save_results(
     summary_path = output_dir / f"{prefix}_summary.json"
     per_sample_path = output_dir / f"{prefix}_per_sample.csv"
 
-    summary = build_aggregate_summary(results, requested_count)
+    summary = build_aggregate_summary(results, requested_count, timing=timing)
     summary.update(
         {
             "created_at": datetime.now().isoformat(timespec="seconds"),
@@ -238,6 +295,9 @@ def save_results(
         "gt_median",
         "pred_median",
         "scale_ratio",
+        "sample_wall_seconds",
+        "model_forward_seconds",
+        "model_forward_fps",
     ]
     for name in DEPTH_METRIC_NAMES:
         fieldnames.append(f"raw_{name}")
@@ -325,7 +385,7 @@ def run_lite_mono_inference(
     label_shape: Tuple[int, int],
     model: LiteMonoModel,
     print_details: bool,
-) -> np.ndarray:
+) -> Tuple[np.ndarray, float]:
     import torch
     import torch.nn.functional as F
 
@@ -334,6 +394,9 @@ def run_lite_mono_inference(
         original_width, original_height = input_image.size
         input_tensor = image_to_input_tensor(input_image, model)
 
+    if getattr(model.device, "type", None) == "cuda":
+        torch.cuda.synchronize(model.device)
+    model_forward_start = time.perf_counter()
     with torch.no_grad():
         features = model.encoder(input_tensor)
         outputs = model.depth_decoder(features)
@@ -347,6 +410,9 @@ def run_lite_mono_inference(
             mode="bilinear",
             align_corners=False,
         )
+    if getattr(model.device, "type", None) == "cuda":
+        torch.cuda.synchronize(model.device)
+    model_forward_seconds = time.perf_counter() - model_forward_start
 
     raw_disp_np = raw_disp.detach().cpu().numpy()
     scaled_disp_np = scaled_disp.detach().cpu().numpy()
@@ -383,7 +449,8 @@ def run_lite_mono_inference(
             "    Resized depth:      "
             f"shape={tuple(depth_resized.shape)}, {format_stats(finite_stats(depth_resized_np))}"
         )
-    return depth_resized_np[0, 0]
+        print(f"    Model forward time: {model_forward_seconds:.6f} s")
+    return depth_resized_np[0, 0], model_forward_seconds
 
 
 def evaluate_prediction_against_label(
@@ -451,6 +518,8 @@ def evaluate_prediction_against_label(
             gt_median=gt_median,
             pred_median=pred_median,
             scale_ratio=scale_ratio,
+            sample_wall_seconds=0.0,
+            model_forward_seconds=None,
             raw_metrics=raw_metrics,
             scaled_metrics=None,
         )
@@ -470,6 +539,8 @@ def evaluate_prediction_against_label(
         gt_median=gt_median,
         pred_median=pred_median,
         scale_ratio=scale_ratio,
+        sample_wall_seconds=0.0,
+        model_forward_seconds=None,
         raw_metrics=raw_metrics,
         scaled_metrics=scaled_metrics,
     )
@@ -478,6 +549,7 @@ def evaluate_prediction_against_label(
 def print_aggregate_summary(
     results: List[EvaluationResult],
     requested_count: int,
+    timing: Optional[Dict[str, object]] = None,
 ) -> None:
     print("\nAggregate evaluation summary")
     print("  Averaging rule: per-image metric mean, matching original Lite-Mono evaluation style")
@@ -516,6 +588,17 @@ def print_aggregate_summary(
     else:
         print("  Mean median-scaled metrics: skipped because no scale ratios were valid")
 
+    if timing is not None:
+        print("  Timing:")
+        if timing["model_load_seconds"] is not None:
+            print(f"    model_load_seconds:        {timing['model_load_seconds']:.3f}")
+        print(f"    evaluation_loop_seconds:   {timing['evaluation_loop_seconds']:.3f}")
+        print(f"    total_run_seconds:         {timing['total_run_seconds']:.3f}")
+        if timing["metric_samples_per_second"] is not None:
+            print(f"    metric_samples_per_second: {timing['metric_samples_per_second']:.3f}")
+        if timing["model_forward_fps"] is not None:
+            print(f"    model_forward_fps:         {timing['model_forward_fps']:.3f}")
+
 
 def inspect_sample(
     index: int,
@@ -528,6 +611,7 @@ def inspect_sample(
     eval_max_depth: float,
     print_details: bool,
 ) -> Optional[EvaluationResult]:
+    sample_start = time.perf_counter()
     if rgb_rel not in manifest:
         raise KeyError(f"{rgb_rel} is present in split file but missing from all_samples.csv")
 
@@ -573,7 +657,7 @@ def inspect_sample(
         print(f"  Pair delta ms: {row.get('time_delta_ms', 'n/a')}")
         print(f"  Dense fill ratio from manifest: {row.get('dense_fill_ratio', 'n/a')}")
     if model is not None:
-        pred_depth = run_lite_mono_inference(
+        pred_depth, model_forward_seconds = run_lite_mono_inference(
             rgb_path, dense.shape, model, print_details=print_details
         )
         result = evaluate_prediction_against_label(
@@ -591,6 +675,8 @@ def inspect_sample(
             rgb_rel=rgb_rel,
             dense_rel=dense_rel,
             valid_mask_rel=valid_mask_rel,
+            sample_wall_seconds=time.perf_counter() - sample_start,
+            model_forward_seconds=model_forward_seconds,
         )
     return None
 
@@ -690,6 +776,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
+    run_start = time.perf_counter()
     args = parse_args()
     workspace_dir = args.dataset_workspace.resolve()
     prepared_dir = workspace_dir / args.prepared_name
@@ -701,7 +788,9 @@ def main() -> None:
     selected_pairs = pairs if args.max_samples <= 0 else pairs[: args.max_samples]
 
     model = None
+    model_load_seconds = None
     if args.run_model:
+        model_load_start = time.perf_counter()
         model = load_lite_mono_model(
             weights_folder=args.weights_folder.resolve(),
             model_name=args.model,
@@ -709,6 +798,7 @@ def main() -> None:
             min_depth=args.min_depth,
             max_depth=args.max_depth,
         )
+        model_load_seconds = time.perf_counter() - model_load_start
 
     print("Citrus Lite-Mono baseline evaluator")
     print(f"  Dataset workspace: {workspace_dir}")
@@ -729,6 +819,7 @@ def main() -> None:
         print(f"  Eval depth range:  {args.eval_min_depth}..{args.eval_max_depth} m")
 
     results = []
+    evaluation_loop_start = time.perf_counter()
     for index, (rgb_rel, dense_rel) in enumerate(selected_pairs, start=1):
         result = inspect_sample(
             index,
@@ -749,9 +840,18 @@ def main() -> None:
             and index % args.progress_interval == 0
         ):
             print(f"  Processed {index}/{len(selected_pairs)} samples")
+    evaluation_loop_seconds = time.perf_counter() - evaluation_loop_start
+    total_run_seconds = time.perf_counter() - run_start
+    timing = build_timing_summary(
+        results=results,
+        requested_count=len(selected_pairs),
+        model_load_seconds=model_load_seconds,
+        evaluation_loop_seconds=evaluation_loop_seconds,
+        total_run_seconds=total_run_seconds,
+    )
 
     if model is not None:
-        print_aggregate_summary(results, len(selected_pairs))
+        print_aggregate_summary(results, len(selected_pairs), timing=timing)
         if args.output_dir is not None:
             summary_path, per_sample_path = save_results(
                 output_dir=args.output_dir.resolve(),
@@ -762,6 +862,7 @@ def main() -> None:
                 results=results,
                 requested_count=len(selected_pairs),
                 split_count=len(pairs),
+                timing=timing,
             )
             print("\nSaved result files")
             print(f"  Summary JSON:    {summary_path}")

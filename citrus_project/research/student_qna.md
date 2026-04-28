@@ -835,6 +835,53 @@ show me images with low valid-label coverage
 
 Smoke runs such as `max3` are not official results. They only prove that the code path works.
 
+### What does runtime or FPS mean in the evaluator?
+
+Runtime means "how long something took."
+
+FPS means frames per second:
+
+```text
+FPS = number of images / seconds
+```
+
+The evaluator now records two different timing ideas.
+
+1. Evaluator-loop timing
+   - includes image loading
+   - includes LiDAR label and mask loading
+   - includes model inference
+   - includes resizing
+   - includes metric computation
+
+This tells us:
+
+```text
+how fast this evaluation script processed samples
+```
+
+2. Model-forward timing
+   - includes the neural network encoder
+   - includes the depth decoder
+   - includes disparity-to-depth conversion
+   - includes resizing prediction to label size
+
+This is closer to:
+
+```text
+how fast the model part ran
+```
+
+But it is still not a perfect robot deployment benchmark. The evaluator does extra work that a robot may not do, and small GPU smoke runs can be distorted by CUDA warmup.
+
+Simple example:
+
+```text
+3 images / 1.5 seconds = 2 FPS
+```
+
+That does not mean the final robot system is exactly 2 FPS. It only means this specific evaluator run processed about 2 images per second under those settings.
+
 ### How does the original Lite-Mono learn depth without direct depth labels?
 
 It mainly learns from nearby RGB frames during self-supervised training.
