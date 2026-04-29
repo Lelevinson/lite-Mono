@@ -21,7 +21,8 @@ We are trying to improve Lite-Mono, a lightweight monocular depth model, so it w
 2. We checked how LiDAR should line up with the RGB camera.
 3. We chose the best label-generation route.
 4. We already ran the full final dataset build.
-5. The next step is to run the original Lite-Mono baseline properly on Citrus.
+5. We already ran the original Lite-Mono baseline properly on Citrus validation/test data.
+6. The next major step is Citrus training/evaluation integration, while optional Milestone 1 polish can be deferred.
 
 ## Common Questions
 
@@ -287,12 +288,13 @@ Done:
 4. densification-method cleanup
 5. final label-route decision
 6. full dataset build
+7. original Lite-Mono baseline evaluation on Citrus validation/test splits
+8. first validation/test good-typical-bad visual interpretation
 
 Still left:
 
-1. run the original Lite-Mono baseline properly on Citrus
-2. collect baseline metrics and failure cases
-3. start the adaptation/improvement experiments
+1. optional Milestone 1 polish, such as broader failure taxonomy or cleaner FLOPs/runtime benchmarking
+2. start the Citrus integration and adaptation/improvement experiments
 
 ### Where do we write things down for later paper use?
 
