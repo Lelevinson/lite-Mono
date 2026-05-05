@@ -151,6 +151,7 @@ citrus_project/dataset_workspace/projection_alignment_audit
 
 # Generated research/demo artifacts
 citrus_project/research/generated/
+tmp_trainer_wiring_smoke/
 
 # Local Codex project config / MCP secrets
 .codex/

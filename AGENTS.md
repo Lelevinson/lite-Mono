@@ -664,7 +664,7 @@ Observed from current repository review:
 4. build_training_dataset.py now rebuilds manifest rows when dense files already exist and can force-regenerate dense outputs with `--no_skip_existing`.
 5. Current builder default uses time-block grouped splitting; paper experiments should still confirm the split does not leak near-duplicate frames across train/val/test.
 6. Densification quality must be treated as a first-class validation target before supervised/hybrid training, especially calibration correctness, support masks, fill ratio, and visual projection alignment.
-7. The original Lite-Mono code still computes KITTI-shaped monitoring crops in compute_depth_losses; Citrus metrics should use Citrus image geometry and masks instead of KITTI Eigen crop assumptions.
+7. Training-time depth metric logging now has a guard: default `--depth_metric_crop kitti_eigen` preserves KITTI behavior, but non-KITTI label shapes raise unless `--depth_metric_crop none` is used; `valid_mask` is also used when present.
 
 ## Proposed Paper Milestones (Quality Targets)
 
@@ -710,7 +710,7 @@ Milestone 6 - Paper package:
 2. Include qualitative examples in canopy, aisle, trunk, ground, and high-occlusion scenes.
 3. Document dataset construction enough for reproducibility.
 
-## Timeline Snapshot (2026-04-28)
+## Timeline Snapshot (2026-05-05)
 
 Done:
 
@@ -727,27 +727,45 @@ Done:
 11. Added the Milestone 1 result-analysis helper and generated first good/typical/bad validation visual panels.
 12. Added a beginner-friendly visual interpretation note explaining what the good/typical/bad panels show about the original model's behavior.
 13. Generated matching good/typical/bad visual panels for the test split.
+14. Started Milestone 2 with a milestone-local Citrus prepared Dataset/DataLoader smoke slice.
+15. Added a Milestone 2 temporal-neighbor diagnostic for self-supervised training readiness.
+16. Added a Milestone 2 trainer-compatibility dry run for metadata-free temporal Citrus batches.
+17. Added a Citrus-safe training-time depth-metric guard so KITTI crop assumptions cannot be silently applied to Citrus-shaped labels.
+18. Wired Citrus into the root trainer dataset option path and verified one root `Trainer` Citrus batch smoke.
+19. Verified one root Citrus optimizer-step smoke with finite loss, finite gradients, and an actual parameter update.
+20. Added train-only Citrus color augmentation and reran the root Citrus one-step smoke successfully.
 
 Current:
 
 1. Milestone 0 is now complete through the full dataset build, with the final/default route and split policy materialized under `prepared_training_dataset/`.
-2. Milestone 1 has completed the first real quantitative original Lite-Mono baseline runs on Citrus validation/test data.
+2. Milestone 1 core baseline evidence is complete; optional broader failure taxonomy and FLOPs/deployment benchmarking are deferred for now.
 3. `citrus_project/milestones/01_original_lite_mono_baseline/evaluate_lite_mono_citrus.py` currently implements Slice 1 data inspection, Slice 2 optional Lite-Mono inference, Slice 3 valid-mask-aware metric comparison, Slice 4 aggregate metric summaries, Slice 5 optional CSV/JSON result saving, Slice 6 runtime/FPS metadata, and Slice 7 model parameter/checkpoint metadata.
 4. `citrus_project/milestones/01_original_lite_mono_baseline/analyze_lite_mono_citrus_results.py` implements Slice 8 result interpretation support by selecting and rendering good/typical/bad samples from saved per-sample metrics.
 5. Full validation/test baseline result files are saved under `citrus_project/milestones/01_original_lite_mono_baseline/results/`.
-6. First validation visual panels are saved under `citrus_project/milestones/01_original_lite_mono_baseline/visuals/`.
-7. We now need a decision on whether Milestone 1 needs optional extras such as broader failure taxonomy or FLOPs, plus a small shared sample pack for teammate support work.
+6. Validation/test visual panels are saved under `citrus_project/milestones/01_original_lite_mono_baseline/visuals/`.
+7. `citrus_project/milestones/02_citrus_integration/citrus_prepared_dataset.py` now defines `CitrusPreparedDataset` for prepared split manifests, with target-only loading by default and optional same-split temporal triplets via `frame_ids=[0, -1, 1]`.
+8. `citrus_project/milestones/02_citrus_integration/inspect_citrus_prepared_dataset.py` smoke-tests target-only or temporal loading through a PyTorch `DataLoader`.
+9. `citrus_project/milestones/02_citrus_integration/inspect_temporal_neighbors.py` checks whether each prepared target frame has same-split, same-session previous/next RGB neighbors.
+10. `citrus_project/milestones/02_citrus_integration/dry_run_lite_mono_temporal_batch.py` runs one metadata-free temporal Citrus batch through Lite-Mono depth, pose, projection, and reprojection-shape logic without editing root training code.
+11. `trainer.py` and `options.py` now include the narrow Citrus-safe depth-metric guard: KITTI keeps the default `kitti_eigen` monitoring crop, while Citrus/non-KITTI labels must use `--depth_metric_crop none`.
+12. `options.py` now accepts `--dataset citrus`, `--split citrus_prepared`, `--citrus_prepared_name`, and `--citrus_max_neighbor_delta_ms`.
+13. `--depth_metric_crop auto` is now the CLI default: root trainer setup resolves it to `kitti_eigen` for KITTI and `none` for Citrus.
+14. `trainer.py` can now build Citrus train/val loaders from `CitrusPreparedDataset` with metadata-free same-split temporal batches.
+15. `citrus_project/milestones/02_citrus_integration/smoke_root_citrus_one_step_train.py` verifies one Citrus optimizer step through the root trainer path.
+16. `CitrusPreparedDataset` now supports train-only ColorJitter-style augmentation for `color_aug`; validation/test samples keep `color_aug == color`.
+17. Milestone 2 core integration is complete: Dataset/DataLoader, temporal triplets, root trainer selection, Citrus-safe depth metrics, color augmentation, forward/backward, and one optimizer step all pass, including a CUDA one-step smoke.
+18. Full Citrus training experiments have not started yet; those belong to Milestone 3 self-supervised adaptation.
 
 Next:
 
-1. Decide whether Milestone 1 is sufficient for now or needs optional extras.
-2. Optional extra: build a broader failure taxonomy from more visual samples.
-3. Optional extra: add FLOPs or a dedicated deployment-speed benchmark if needed for the paper's lightweight-efficiency claim.
+1. Treat Milestone 2 as core complete.
+2. Start Milestone 3 with a controlled short Citrus self-supervised adaptation run plan before launching any long fine-tuning.
+3. Prefer same-split, same-session `[-1, 0, 1]` RGB triplets with a 200 ms neighbor-gap cap; current temporal mode drops boundary samples that cannot form a full safe triplet.
 4. Prepare and share a small curated sample pack for Friend B's scene-taxonomy and qualitative-support work.
 
 Later:
 
-1. Add Citrus-specific training/evaluation integration into the Lite-Mono codebase.
+1. Wire the Citrus dataset path into root Lite-Mono training/evaluation while preserving KITTI behavior.
 2. Fine-tune/self-supervise Lite-Mono on Citrus RGB sequences.
 3. Propose and test one lightweight vegetation-focused improvement.
 4. Optionally test supervised or hybrid training with dense LiDAR labels.
@@ -851,6 +869,185 @@ Milestone 1 Citrus evaluator:
    - runs the same good/typical/bad visual selection on the test split
    - confirms the validation qualitative interpretation is also visible in held-out test examples
 
+Milestone 2 Citrus prepared Dataset/DataLoader smoke:
+
+1. From repo root:
+   - `D:/Conda_Envs/lite-mono/python.exe citrus_project/milestones/02_citrus_integration/inspect_citrus_prepared_dataset.py --samples_per_split 2 --batch_size 2`
+2. Current Slice 1 behavior:
+   - reads `prepared_training_dataset/splits/<split>_pairs.txt`
+   - joins split entries with `prepared_training_dataset/metrics/all_samples.csv`
+   - loads RGB, dense LiDAR labels, valid masks, timestamps, session tokens, and manifest metadata
+   - returns model-sized RGB tensors by default (`3 x 192 x 640`)
+   - keeps dense labels and valid masks at native size (`1 x 720 x 1280`)
+   - returns Citrus ZED-left camera intrinsics as `K`, `inv_K`, and `K_normalized`
+   - provides pinhole intrinsics only; distortion coefficients are not passed through because Lite-Mono warping expects a pinhole camera matrix and the active RGB topic is `/zed2i/zed_node/left/image_rect_color`
+   - supports temporal mode with same-split, same-session `frame_ids=[0, -1, 1]`
+   - temporal mode exposes Lite-Mono-style keys such as `("color", -1, 0)`, `("color", 0, 0)`, `("color", 1, 0)`, `("K", 0)`, and `("inv_K", 0)`
+   - `include_metadata=False` can be used later for trainer-facing batches where every value must support `.to(device)`
+3. Latest smoke result:
+   - train split loaded: 4311 samples
+   - validation split loaded: 564 samples
+   - default DataLoader smoke batch size: 2
+   - resized 640 x 192 Citrus K starts with `fx=263.77954`, `fy=140.94998`, `cx=323.59875`, `cy=95.26605`
+4. Temporal DataLoader smoke command:
+   - `D:/Conda_Envs/lite-mono/python.exe citrus_project/milestones/02_citrus_integration/inspect_citrus_prepared_dataset.py --temporal --samples_per_split 2 --batch_size 2 --splits train val`
+5. Latest temporal DataLoader smoke result:
+   - train temporal dataset length: 4275 safe triplet targets
+   - validation temporal dataset length: 560 safe triplet targets
+   - frame `0`, `-1`, and `1` RGB tensors each batch as `2 x 3 x 192 x 640`
+   - target dense labels and valid masks remain native size, `2 x 1 x 720 x 1280`
+6. Trainer-facing metadata check:
+   - `CitrusPreparedDataset(frame_ids=[0, -1, 1], include_metadata=False)` produced one sample with 45 tensor-like values and no non-tensor values.
+
+Milestone 2 temporal-neighbor diagnostic:
+
+1. From repo root:
+   - `D:/Conda_Envs/lite-mono/python.exe citrus_project/milestones/02_citrus_integration/inspect_temporal_neighbors.py`
+2. Current Slice 2 behavior:
+   - checks same-split, same-session previous and next neighbors for each prepared target frame
+   - reports how many targets can form safe `previous/current/next` triplets under `--max_neighbor_delta_ms`, default `200.0`
+   - reports when the nearest global neighbor would cross a train/val/test boundary, so trainer integration can avoid split leakage
+3. Latest default-threshold result:
+   - all prepared samples inspected: 5282
+   - train safe triplets: 4275 / 4311 (99.16%)
+   - validation safe triplets: 560 / 564 (99.29%)
+   - test safe triplets: 399 / 407 (98.03%)
+   - same-split neighbor deltas are about 100 ms median in all splits; max same-split delta was 159.911 ms in train, 137.273 ms in validation, and 128.504 ms in test
+4. Current interpretation:
+   - Citrus has enough same-split temporal neighbors for self-supervised training, but boundary samples and cross-split global neighbors must be handled explicitly.
+
+Milestone 2 trainer-compatibility dry run:
+
+1. From repo root:
+   - `D:/Conda_Envs/lite-mono/python.exe citrus_project/milestones/02_citrus_integration/dry_run_lite_mono_temporal_batch.py --batch_size 2 --no_cuda`
+2. Current Slice 3 behavior:
+   - consumes a metadata-free temporal Citrus batch from `CitrusPreparedDataset(frame_ids=[0, -1, 1], include_metadata=False)`
+   - builds the Lite-Mono depth encoder/decoder plus the ResNet pose encoder/decoder
+   - runs the current RGB frame through the depth path
+   - predicts relative poses for previous and next RGB frames
+   - uses `BackprojectDepth`, `Project3D`, and `grid_sample` to synthesize warped source images
+   - computes a small L1 reprojection smoke loss
+   - does not load pretrained weights, update weights, or edit root `trainer.py`; it is a batch/key/shape contract check only
+3. Latest CPU dry-run result:
+   - syntax check passed
+   - CPU dry runs passed with `--batch_size 1 --no_cuda` and `--batch_size 2 --no_cuda`
+   - train temporal samples available: 4275
+   - batch size 2 used 45 tensor-like batch values and no non-tensor metadata
+   - frame `0`, `-1`, and `1` RGB tensors each had shape `2 x 3 x 192 x 640`
+   - `depth_gt` and `valid_mask` had shape `2 x 1 x 720 x 1280`
+   - disparity outputs were produced at scales 0, 1, and 2
+   - warped source RGB tensors for frames `-1` and `1` had shape `2 x 3 x 192 x 640`
+   - reprojection smoke loss was `0.076165` in the batch-size-2 CPU smoke run
+4. Current interpretation:
+   - the Citrus temporal batch is compatible with the core Lite-Mono depth, pose, projection, and reprojection shape path
+   - wider root trainer integration is still pending, and Citrus training should use the later depth-metric guard with `--depth_metric_crop none`
+
+Milestone 2 Citrus-safe depth-metric guard:
+
+1. From repo root:
+   - `D:/Conda_Envs/lite-mono/python.exe citrus_project/milestones/02_citrus_integration/smoke_depth_metric_guard.py`
+2. Current Slice 4 behavior:
+   - adds `--depth_metric_crop` to `options.py`
+   - keeps the default as `kitti_eigen`, preserving original KITTI training-time depth metric behavior
+   - adds `none` as the non-KITTI/Citrus mode so depth metrics use native label geometry instead of the KITTI crop
+   - resizes predicted depth to the actual `depth_gt` shape before metric logging
+   - uses `inputs["valid_mask"]` when present, so Citrus metrics can ignore invalid LiDAR-label pixels
+   - raises a clear error if `kitti_eigen` is used with non-KITTI-shaped labels, instead of silently applying the wrong crop
+3. Latest smoke result:
+   - `smoke_depth_metric_guard.py` passed
+   - syntax-only compile for `trainer.py`, `options.py`, and the smoke script passed
+4. Current interpretation:
+   - this is a safety guard for future Citrus training integration, not full Citrus root training wiring yet
+   - future Citrus training commands should use `--depth_metric_crop none` unless the root integration automatically selects it for the Citrus dataset
+
+Milestone 2 root Citrus trainer wiring:
+
+1. From repo root:
+   - `D:/Conda_Envs/lite-mono/python.exe citrus_project/milestones/02_citrus_integration/smoke_root_citrus_trainer_wiring.py`
+2. Current Slice 5 behavior:
+   - root `options.py` accepts `--dataset citrus`
+   - root trainer auto-resolves Citrus defaults from `--dataset citrus`: `split=citrus_prepared`, `data_path=citrus_project/dataset_workspace`, and `depth_metric_crop=none`
+   - explicit `--dataset citrus --depth_metric_crop kitti_eigen` is rejected before trainer setup
+   - root trainer builds Citrus train/val DataLoaders from the Milestone 2 `CitrusPreparedDataset`
+   - the smoke script monkeypatches TensorBoard with a no-op writer because the current sandbox blocks TensorBoardX multiprocessing pipes; real training still uses the normal `SummaryWriter`
+   - the smoke uses `--weights_init scratch`, `--no_cuda`, `batch_size=1`, and one batch only; it does not perform an optimizer update
+3. Latest smoke result:
+   - syntax-only compile passed for `trainer.py`, `options.py`, `smoke_root_citrus_trainer_wiring.py`, and `smoke_depth_metric_guard.py`
+   - `smoke_depth_metric_guard.py` passed
+   - `train.py --help` shows `citrus`, `citrus_prepared`, and `depth_metric_crop {auto,kitti_eigen,none}`
+   - root Citrus trainer wiring smoke passed
+   - resolved `data_path`: `D:\IBPI\Image Proc-AI Assisted-SP1\Lite-Mono\citrus_project\dataset_workspace`
+   - resolved `split`: `citrus_prepared`
+   - resolved `depth_metric_crop`: `none`
+   - train samples: 4275
+   - validation samples: 560
+   - latest one-batch photometric loss was finite: `0.161647`
+   - latest one-batch depth `abs_rel` monitor was finite: `0.832625`
+   - one-batch smoke loss values can change between runs because the root train DataLoader shuffles samples
+4. Current interpretation:
+   - root training can now select Citrus and consume one Citrus temporal batch through the normal trainer path
+   - this is still a smoke-test slice, not an actual adaptation experiment
+   - Citrus color augmentation is now handled in the later Slice 7 smoke section
+
+Milestone 2 root Citrus one-step optimizer smoke:
+
+1. From repo root:
+   - `D:/Conda_Envs/lite-mono/python.exe citrus_project/milestones/02_citrus_integration/smoke_root_citrus_one_step_train.py`
+   - Optional CUDA version: `D:/Conda_Envs/lite-mono/python.exe citrus_project/milestones/02_citrus_integration/smoke_root_citrus_one_step_train.py --use_cuda`
+2. Current Slice 6 behavior:
+   - builds the root `Trainer` with `--dataset citrus`, CPU, `batch_size=1`, `weights_init=scratch`, and no-op TensorBoard writer for the sandbox
+   - loads one Citrus temporal training batch through the normal root train DataLoader
+   - runs `Trainer.process_batch`
+   - checks the training loss is finite
+   - runs optimizer zero-grad, backward, finite-gradient check, and one AdamW step for depth and pose optimizers
+   - verifies at least one encoder parameter changed after the optimizer step
+   - does not save a checkpoint or start a real epoch/fine-tuning run
+3. Latest smoke result:
+   - syntax-only compile passed for root and Milestone 2 smoke scripts
+   - `smoke_depth_metric_guard.py` passed
+   - `smoke_root_citrus_trainer_wiring.py` passed
+   - `smoke_root_citrus_one_step_train.py` passed
+   - resolved `data_path`: `D:\IBPI\Image Proc-AI Assisted-SP1\Lite-Mono\citrus_project\dataset_workspace`
+   - resolved `split`: `citrus_prepared`
+   - resolved `depth_metric_crop`: `none`
+   - train samples: 4275
+   - validation samples: 560
+   - one-step loss before update: `0.139443`
+   - max checked encoder parameter delta after update: `0.0000050217`
+4. Current interpretation:
+   - root Citrus training wiring now supports forward pass, backward pass, finite gradients, and one optimizer update
+   - this is still only a smoke test, not a meaningful adaptation result
+   - color augmentation is now handled in the later Slice 7 smoke section
+
+Milestone 2 Citrus color augmentation:
+
+1. From repo root:
+   - `D:/Conda_Envs/lite-mono/python.exe citrus_project/milestones/02_citrus_integration/smoke_citrus_color_augmentation.py`
+2. Current Slice 7 behavior:
+   - `CitrusPreparedDataset` accepts `is_train` and `color_augmentation_probability`
+   - train-mode samples apply a fixed ColorJitter-style transform to all frames in one temporal sample when augmentation is selected
+   - validation/test samples keep `color_aug` identical to `color`
+   - root trainer passes `is_train=True` for Citrus train split and `is_train=False` for Citrus validation split
+   - root trainer exposes `--citrus_color_aug_probability`, default `0.5`
+3. Latest smoke result:
+   - `smoke_citrus_color_augmentation.py` passed
+   - train samples: 4275
+   - validation samples: 560
+   - forced train augmentation mean absolute `color_aug - color` difference: `0.069748`
+   - forced validation mean absolute `color_aug - color` difference: `0.000000`
+   - root Citrus trainer wiring smoke passed after adding augmentation
+   - root Citrus one-step training smoke passed after adding augmentation
+   - one-step loss before update after augmentation change: `0.154858`
+   - max checked encoder parameter delta after update: `0.0000050217`
+   - CUDA one-step smoke later passed after the laptop GPU became visible:
+     - device: `cuda`
+     - GPU: NVIDIA GeForce RTX 4060 Laptop GPU
+     - loss before update: `0.198368`
+     - max checked encoder parameter delta after update: `0.0000050217`
+4. Current interpretation:
+   - Milestone 2 core integration is complete
+   - the next milestone should be Milestone 3 controlled self-supervised Citrus adaptation, starting with a short run plan rather than a long training launch
+
 ## Change Log
 
 - 2026-03-31: Created AGENTS.md with mandatory read/update workflow and Citrus pipeline context.
@@ -924,6 +1121,15 @@ Milestone 1 Citrus evaluator:
 - 2026-04-28: Added the Slice 8 result-analysis helper for selecting good/typical/bad baseline samples by `median_scaled_a1` and generated first validation visual panels under the Milestone 1 `visuals/` folder.
 - 2026-04-29: Added Slice 9 visual interpretation notes, explaining the selected good/typical/bad panels in beginner-friendly language and recording the first qualitative baseline-failure interpretation for Milestone 1.
 - 2026-04-29: Ran Slice 10 test-split visual selection, adding matching good/typical/bad test panels and summaries under the Milestone 1 `visuals/` folder.
+- 2026-04-29: Started Milestone 2 with a milestone-local `CitrusPreparedDataset` plus a DataLoader smoke inspector; verified two train and two validation samples load with model-sized RGB tensors, native dense labels/masks, manifest metadata, and Citrus ZED-left camera intrinsics while leaving root Lite-Mono training code unchanged.
+- 2026-05-05: Added the Milestone 2 temporal-neighbor diagnostic script and verified that same-split/same-session previous-current-next triplets are available for 4275/4311 train samples, 560/564 validation samples, and 399/407 test samples under a 200 ms neighbor-gap threshold; root Lite-Mono trainer code remains unchanged.
+- 2026-05-05: Extended `CitrusPreparedDataset` with optional same-split temporal triplet loading, Lite-Mono-style color/K tuple keys, metadata-free trainer-facing samples, and a temporal DataLoader smoke path; verified train/validation temporal batches load frame `0`, `-1`, and `1` RGB tensors without touching root training code.
+- 2026-05-05: Added the Milestone 2 trainer-compatibility dry run for metadata-free Citrus temporal batches; verified CPU batch-size-1 and batch-size-2 runs through Lite-Mono depth, pose, projection, and reprojection-shape logic while keeping root `trainer.py` unchanged.
+- 2026-05-05: Added a Citrus-safe training-time depth-metric guard in `trainer.py` and `options.py`; default KITTI Eigen crop behavior is preserved, Citrus/non-KITTI labels must use `--depth_metric_crop none`, and valid masks are honored when present.
+- 2026-05-05: Wired Citrus into root trainer option/dataset selection with `--dataset citrus`, auto-resolved Citrus split/data path/depth-metric behavior, and a root trainer wiring smoke that loads 4275 train and 560 validation temporal Citrus samples and runs one finite batch through the normal trainer path.
+- 2026-05-05: Added and ran the root Citrus one-step optimizer smoke; one CPU batch completed forward, backward, finite-gradient checks, and an AdamW parameter update without starting a real fine-tuning experiment.
+- 2026-05-05: Added train-only Citrus color augmentation for `color_aug`, verified validation remains unaugmented, reran root trainer wiring plus one-step optimizer smokes, and marked Milestone 2 core integration complete.
+- 2026-05-05: After the laptop GPU became visible, reran the root Citrus one-step optimizer smoke with `--use_cuda`; it passed on the NVIDIA GeForce RTX 4060 Laptop GPU.
 
 ## Update Template (Append On Future Changes)
 

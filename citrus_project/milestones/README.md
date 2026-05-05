@@ -18,6 +18,7 @@ Current milestone state:
 
 - Milestone 0 is complete through the full dataset build.
 - Milestone 1 has full original Lite-Mono validation/test metrics, validation/test good-typical-bad visuals, and first written interpretation.
-- The next major stage is Milestone 2 Citrus integration, unless optional Milestone 1 polish is needed first.
+- Optional Milestone 1 polish is deferred for now.
+- Milestone 2 core integration is complete: Citrus prepared Dataset/DataLoader, temporal-neighbor diagnostics, temporal triplet batch smoke checks, trainer-compatibility dry run, root depth-metric guard, root `--dataset citrus` trainer wiring, one-step optimizer smoke, CUDA one-step smoke, and train-only Citrus color augmentation are in place.
 
 These folders are the intended home for milestone-specific code, notes, helpers, and outputs as each stage becomes active.

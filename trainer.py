@@ -2,6 +2,7 @@ from __future__ import absolute_import, division, print_function
 
 
 import time
+import sys
 import torch.optim as optim
 from torch.utils.data import DataLoader
 from tensorboardX import SummaryWriter
@@ -30,6 +31,7 @@ def time_sync():
 class Trainer:
     def __init__(self, options):
         self.opt = options
+        self.configure_dataset_options()
         self.log_path = os.path.join(self.opt.log_dir, self.opt.model_name)
 
         # checking height and width are multiples of 32
@@ -141,28 +143,14 @@ class Trainer:
         print("Training is using:\n  ", self.device)
 
         # data
-        datasets_dict = {"kitti": datasets.KITTIRAWDataset,
-                         "kitti_odom": datasets.KITTIOdomDataset}
-        self.dataset = datasets_dict[self.opt.dataset]
+        train_dataset, val_dataset = self.build_train_val_datasets()
 
-        fpath = os.path.join(os.path.dirname(__file__), "splits", self.opt.split, "{}_files.txt")
-
-        train_filenames = readlines(fpath.format("train"))
-        val_filenames = readlines(fpath.format("val"))
-        img_ext = '.png' if self.opt.png else '.jpg'
-
-        num_train_samples = len(train_filenames)
+        num_train_samples = len(train_dataset)
         self.num_total_steps = num_train_samples // self.opt.batch_size * self.opt.num_epochs
 
-        train_dataset = self.dataset(
-            self.opt.data_path, train_filenames, self.opt.height, self.opt.width,
-            self.opt.frame_ids, 4, is_train=True, img_ext=img_ext)
         self.train_loader = DataLoader(
             train_dataset, self.opt.batch_size, True,
             num_workers=self.opt.num_workers, pin_memory=True, drop_last=True)
-        val_dataset = self.dataset(
-            self.opt.data_path, val_filenames, self.opt.height, self.opt.width,
-            self.opt.frame_ids, 4, is_train=False, img_ext=img_ext)
         self.val_loader = DataLoader(
             val_dataset, self.opt.batch_size, True,
             num_workers=self.opt.num_workers, pin_memory=True, drop_last=True)
@@ -196,6 +184,93 @@ class Trainer:
             len(train_dataset), len(val_dataset)))
 
         self.save_opts()
+
+    def configure_dataset_options(self):
+        """Resolve dataset-specific training options before model/data setup."""
+        if not hasattr(self.opt, "depth_metric_crop"):
+            self.opt.depth_metric_crop = "auto"
+        if not hasattr(self.opt, "citrus_prepared_name"):
+            self.opt.citrus_prepared_name = "prepared_training_dataset"
+        if not hasattr(self.opt, "citrus_max_neighbor_delta_ms"):
+            self.opt.citrus_max_neighbor_delta_ms = 200.0
+        if not hasattr(self.opt, "citrus_color_aug_probability"):
+            self.opt.citrus_color_aug_probability = 0.5
+        if not 0.0 <= self.opt.citrus_color_aug_probability <= 1.0:
+            raise ValueError(
+                "--citrus_color_aug_probability must be between 0 and 1, "
+                "got {}".format(self.opt.citrus_color_aug_probability))
+
+        if self.opt.dataset == "citrus":
+            default_kitti_path = os.path.abspath(os.path.join(
+                os.path.dirname(__file__), "kitti_data"))
+            current_data_path = os.path.abspath(os.path.expanduser(self.opt.data_path))
+            if current_data_path == default_kitti_path:
+                self.opt.data_path = os.path.join(
+                    os.path.dirname(__file__), "citrus_project", "dataset_workspace")
+
+            if self.opt.split == "eigen_zhou":
+                self.opt.split = "citrus_prepared"
+            elif self.opt.split != "citrus_prepared":
+                raise ValueError(
+                    "dataset='citrus' expects --split citrus_prepared, "
+                    "got {}".format(self.opt.split))
+
+            if self.opt.use_stereo:
+                raise ValueError("dataset='citrus' currently supports monocular training only")
+
+            if self.opt.depth_metric_crop == "auto":
+                self.opt.depth_metric_crop = "none"
+            elif self.opt.depth_metric_crop != "none":
+                raise ValueError(
+                    "dataset='citrus' requires --depth_metric_crop none; "
+                    "got {}".format(self.opt.depth_metric_crop))
+        else:
+            if self.opt.split == "citrus_prepared":
+                raise ValueError("--split citrus_prepared is only valid with --dataset citrus")
+            if self.opt.depth_metric_crop == "auto":
+                self.opt.depth_metric_crop = "kitti_eigen"
+
+    def build_train_val_datasets(self):
+        if self.opt.dataset == "citrus":
+            return self.build_citrus_train_val_datasets()
+
+        datasets_dict = {"kitti": datasets.KITTIRAWDataset,
+                         "kitti_odom": datasets.KITTIOdomDataset}
+        self.dataset = datasets_dict[self.opt.dataset]
+        fpath = os.path.join(os.path.dirname(__file__), "splits", self.opt.split, "{}_files.txt")
+        train_filenames = readlines(fpath.format("train"))
+        val_filenames = readlines(fpath.format("val"))
+        img_ext = '.png' if self.opt.png else '.jpg'
+
+        train_dataset = self.dataset(
+            self.opt.data_path, train_filenames, self.opt.height, self.opt.width,
+            self.opt.frame_ids, 4, is_train=True, img_ext=img_ext)
+        val_dataset = self.dataset(
+            self.opt.data_path, val_filenames, self.opt.height, self.opt.width,
+            self.opt.frame_ids, 4, is_train=False, img_ext=img_ext)
+        return train_dataset, val_dataset
+
+    def build_citrus_train_val_datasets(self):
+        citrus_module_dir = os.path.join(
+            os.path.dirname(__file__), "citrus_project", "milestones", "02_citrus_integration")
+        if citrus_module_dir not in sys.path:
+            sys.path.insert(0, citrus_module_dir)
+        from citrus_prepared_dataset import CitrusPreparedDataset
+
+        dataset_kwargs = {
+            "dataset_workspace": self.opt.data_path,
+            "prepared_name": self.opt.citrus_prepared_name,
+            "image_size": (self.opt.width, self.opt.height),
+            "load_depth": True,
+            "frame_ids": self.opt.frame_ids,
+            "num_scales": 4,
+            "max_neighbor_delta_ms": self.opt.citrus_max_neighbor_delta_ms,
+            "include_metadata": False,
+            "color_augmentation_probability": self.opt.citrus_color_aug_probability,
+        }
+        train_dataset = CitrusPreparedDataset(split="train", is_train=True, **dataset_kwargs)
+        val_dataset = CitrusPreparedDataset(split="val", is_train=False, **dataset_kwargs)
+        return train_dataset, val_dataset
 
     def set_train(self):
         """Convert all models to training mode
@@ -542,17 +617,18 @@ class Trainer:
         so is only used to give an indication of validation performance
         """
         depth_pred = outputs[("depth", 0, 0)]
+        depth_gt = inputs["depth_gt"]
+        depth_height, depth_width = depth_gt.shape[-2:]
         depth_pred = torch.clamp(F.interpolate(
-            depth_pred, [375, 1242], mode="bilinear", align_corners=False), 1e-3, 80)
+            depth_pred, [depth_height, depth_width], mode="bilinear", align_corners=False), 1e-3, 80)
         depth_pred = depth_pred.detach()
 
-        depth_gt = inputs["depth_gt"]
-        mask = depth_gt > 0
+        mask = self.get_depth_metric_mask(inputs, depth_gt, depth_pred)
 
-        # garg/eigen crop
-        crop_mask = torch.zeros_like(mask)
-        crop_mask[:, :, 153:371, 44:1197] = 1
-        mask = mask * crop_mask
+        if not torch.any(mask):
+            for metric in self.depth_metric_names:
+                losses[metric] = np.array(np.nan)
+            return
 
         depth_gt = depth_gt[mask]
         depth_pred = depth_pred[mask]
@@ -564,6 +640,38 @@ class Trainer:
 
         for i, metric in enumerate(self.depth_metric_names):
             losses[metric] = np.array(depth_errors[i].cpu())
+
+    def get_depth_metric_mask(self, inputs, depth_gt, depth_pred):
+        """Build the valid mask for training-time depth metric logging."""
+        mask = torch.isfinite(depth_gt) & torch.isfinite(depth_pred) & (depth_gt > 0)
+
+        if "valid_mask" in inputs:
+            valid_mask = inputs["valid_mask"].to(device=depth_gt.device)
+            if valid_mask.shape != depth_gt.shape:
+                raise ValueError(
+                    "valid_mask must match depth_gt for depth metric logging; "
+                    "got valid_mask shape {} and depth_gt shape {}".format(
+                        tuple(valid_mask.shape), tuple(depth_gt.shape)))
+            mask = mask & (valid_mask > 0)
+
+        crop_mode = getattr(self.opt, "depth_metric_crop", "kitti_eigen")
+        if crop_mode == "kitti_eigen":
+            if depth_gt.shape[-2:] != (375, 1242):
+                raise ValueError(
+                    "depth_metric_crop='kitti_eigen' expects KITTI depth_gt shape "
+                    "375 x 1242, but got {} x {}. For Citrus/non-KITTI labels, "
+                    "set --depth_metric_crop none so metric logging uses the "
+                    "native label geometry and valid_mask.".format(
+                        depth_gt.shape[-2], depth_gt.shape[-1]))
+            crop_mask = torch.zeros_like(mask)
+            crop_mask[:, :, 153:371, 44:1197] = True
+            mask = mask & crop_mask
+        elif crop_mode == "none":
+            pass
+        else:
+            raise ValueError("Unsupported depth_metric_crop: {}".format(crop_mode))
+
+        return mask
 
     def log_time(self, batch_idx, duration, loss):
         """Print a logging statement to the terminal

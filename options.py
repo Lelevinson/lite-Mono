@@ -28,7 +28,8 @@ class LiteMonoOptions:
         self.parser.add_argument("--split",
                                  type=str,
                                  help="which training split to use",
-                                 choices=["eigen_zhou", "eigen_full", "odom", "benchmark"],
+                                 choices=["eigen_zhou", "eigen_full", "odom", "benchmark",
+                                          "citrus_prepared"],
                                  default="eigen_zhou")
         self.parser.add_argument("--model",
                                  type=str,
@@ -52,7 +53,20 @@ class LiteMonoOptions:
                                  type=str,
                                  help="dataset to train on",
                                  default="kitti",
-                                 choices=["kitti", "kitti_odom", "kitti_depth", "kitti_test"])
+                                 choices=["kitti", "kitti_odom", "kitti_depth", "kitti_test",
+                                          "citrus"])
+        self.parser.add_argument("--citrus_prepared_name",
+                                 type=str,
+                                 help="prepared Citrus dataset folder name inside data_path",
+                                 default="prepared_training_dataset")
+        self.parser.add_argument("--citrus_max_neighbor_delta_ms",
+                                 type=float,
+                                 help="maximum timestamp gap for Citrus temporal neighbors",
+                                 default=200.0)
+        self.parser.add_argument("--citrus_color_aug_probability",
+                                 type=float,
+                                 help="probability of applying train-only Citrus color jitter",
+                                 default=0.5)
         self.parser.add_argument("--png",
                                  help="if set, trains from raw KITTI png files (instead of jpgs)",
                                  action="store_true")
@@ -180,6 +194,14 @@ class LiteMonoOptions:
                                  type=int,
                                  help="number of epochs between each save",
                                  default=1)
+
+        # TRAINING-TIME DEPTH METRIC OPTIONS
+        self.parser.add_argument("--depth_metric_crop",
+                                 type=str,
+                                 default="auto",
+                                 choices=["auto", "kitti_eigen", "none"],
+                                 help="crop used for training-time depth metric logging; "
+                                      "'auto' uses KITTI Eigen crop for KITTI and no crop for Citrus")
 
         # EVALUATION options
         self.parser.add_argument("--disable_median_scaling",

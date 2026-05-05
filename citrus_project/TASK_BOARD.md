@@ -1,6 +1,6 @@
 # Task Board
 
-Date: 2026-04-28
+Date: 2026-05-05
 
 ## Current Project Position
 
@@ -10,7 +10,17 @@ Date: 2026-04-28
 - Slice 8 result-interpretation support now selects good/typical/bad validation samples and renders visual panels.
 - The first written visual interpretation note now explains the good/typical/bad panels and the main baseline failure pattern.
 - Test good/typical/bad visual panels are now generated too.
-- The next Milestone 1 choice is whether to build a broader failure taxonomy, add FLOPs/deployment benchmarking, or move into Milestone 2.
+- Optional Milestone 1 polish is deferred for now: broader failure taxonomy and FLOPs/deployment benchmarking can wait unless the paper needs them sooner.
+- Milestone 2 has started with a milestone-local Citrus prepared Dataset/DataLoader smoke slice.
+- Milestone 2 temporal-neighbor diagnostics now show same-split/same-session safe triplets for 99.16% of train samples under a 200 ms neighbor-gap cap.
+- Milestone 2 temporal DataLoader mode now returns same-split `[-1, 0, 1]` RGB triplets with Lite-Mono-style tuple keys.
+- Milestone 2 trainer-compatibility dry runs pass metadata-free temporal Citrus batches through Lite-Mono depth, pose, projection, and reprojection-shape logic.
+- Milestone 2 now has a root trainer depth-metric guard: KITTI keeps the default Eigen crop, while Citrus/non-KITTI labels must use `--depth_metric_crop none` and can use `valid_mask`.
+- Milestone 2 root trainer wiring now exposes `--dataset citrus`; the root smoke resolves Citrus to `split=citrus_prepared`, `depth_metric_crop=none`, and loads 4275 train / 560 validation temporal samples.
+- Milestone 2 one-step Citrus training smoke passed: one CPU batch completed forward, backward, finite-gradient checks, and an AdamW parameter update.
+- Milestone 2 Citrus color augmentation now applies train-only `color_aug` jitter while validation stays unaugmented.
+- Milestone 2 CUDA one-step Citrus smoke passed on the NVIDIA GeForce RTX 4060 Laptop GPU.
+- Milestone 2 core integration is complete.
 - A small curated sample pack is still needed for Friend B's deeper work.
 
 ## Ownership
@@ -20,14 +30,13 @@ Date: 2026-04-28
 Current focus:
 
 1. maintain the core Citrus pipeline and repo-wide integration
-2. review and explain the original Lite-Mono full Citrus baseline visuals/results
-3. decide whether Milestone 1 needs a broader failure taxonomy or can move to Milestone 2
+2. review and explain Milestone 2 dataset/training integration decisions before root trainer changes
+3. keep optional Milestone 1 polish deferred unless needed for the paper story
 
 Near-term outputs:
 
-- baseline result interpretation
-- optional broader failure taxonomy
-- runtime and possible FLOPs/deployment-benchmark notes
+- Milestone 3 controlled short Citrus self-supervised adaptation run plan
+- optional broader failure taxonomy or FLOPs notes later if needed
 
 ### Friend A
 
@@ -68,11 +77,12 @@ Expected near-term output:
 
 1. Friend B’s deeper work depends on a small curated sample pack being prepared.
 2. Baseline evaluation no longer needs final validation/test runs, validation/test visual selection, or first written interpretation; remaining Milestone 1 extras are optional depth, FLOPs, or broader taxonomy.
+3. Full self-supervised Citrus training is waiting on a controlled short-run plan for Milestone 3.
 
 ## Next Review Point
 
 After:
 
 1. the sample pack scaffold is ready for sharing
-2. the user decides whether Milestone 1 is sufficient or needs optional extras
+2. the first Milestone 3 short-run command and evaluation plan are reviewed
 3. Friend A has an initial idea shortlist

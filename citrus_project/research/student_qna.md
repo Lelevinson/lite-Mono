@@ -1218,3 +1218,294 @@ Simple summary:
 - but self-supervised training works best when neighboring frames still have good visual overlap and reasonable motion between them
 - and during normal single-image deployment, speed mainly matters indirectly through image quality, not because pose is being predicted at runtime
 
+### Why does Milestone 2 care about previous and next RGB frames?
+
+Inference and training need different input shapes.
+
+During **inference**, Lite-Mono only needs one RGB image:
+
+```text
+current RGB -> predicted depth
+```
+
+That is why the Milestone 1 evaluator could run over the full validation/test splits one image at a time.
+
+During **self-supervised training**, Lite-Mono needs nearby frames too:
+
+```text
+previous RGB
+current RGB
+next RGB
+```
+
+The model predicts depth for the current RGB image. Then the training code uses the previous/next images to check whether that depth can explain how the scene moved between frames.
+
+Simple mental hook:
+
+- current image = the picture we predict depth for
+- previous/next images = nearby pictures used to teach the model through motion
+- camera `K` = the camera geometry needed to warp pixels correctly
+
+Why not use any nearby file?
+
+Because using a validation or test image as a training neighbor would leak held-out data into training. That would make later scores less trustworthy.
+
+For Citrus, the safe rule we are checking is:
+
+```text
+same split + same session + close timestamp
+```
+
+The current Milestone 2 diagnostic found that most Citrus samples can form safe previous/current/next triplets with about 100 ms between neighboring frames.
+
+The current Milestone 2 Dataset can now return either:
+
+1. target-only samples for simple inspection/evaluation plumbing
+2. temporal samples with `previous/current/next` RGB frames for self-supervised training plumbing
+
+For training-style samples, the RGB tensors use keys like:
+
+```text
+("color", -1, 0)  previous RGB at scale 0
+("color",  0, 0)  current RGB at scale 0
+("color",  1, 0)  next RGB at scale 0
+```
+
+The `0` at the end is the image scale. Scale `0` means the main model input size. Higher scales are smaller versions used by Lite-Mono's multi-scale loss.
+
+### What is the Milestone 2 trainer dry run?
+
+A dry run is a rehearsal, not real training.
+
+For Milestone 2, the dry run checks whether one Citrus training-style batch can pass through the important Lite-Mono training shapes:
+
+1. current RGB goes through the depth model
+2. previous/current/next RGB go through the pose path
+3. predicted depth plus predicted pose are used to warp nearby frames
+4. the code computes a tiny smoke-test reprojection loss
+
+It does **not** update model weights.
+It does **not** mean Citrus training is finished.
+It also does **not** change root `trainer.py` yet.
+
+Plain meaning:
+
+- the DataLoader now speaks the right basic "language" for Lite-Mono training
+- the next careful step is deciding how to wire Citrus into the real trainer without accidentally using KITTI-specific evaluation/cropping assumptions
+
+### What is the Citrus-safe depth-metric guard?
+
+The original Lite-Mono trainer was written around KITTI.
+
+During training, it has a small monitoring step that compares predicted depth with `depth_gt` if ground-truth depth is available. That monitoring step used to assume KITTI geometry:
+
+```text
+resize prediction to 375 x 1242
+apply the KITTI Eigen crop
+compute depth metrics
+```
+
+That is fine for KITTI, but wrong for Citrus.
+
+Our Citrus labels are native:
+
+```text
+720 x 1280
+```
+
+and they also have a `valid_mask`, because not every LiDAR-densified pixel should be trusted.
+
+The new guard adds this rule:
+
+1. KITTI still uses the default `--depth_metric_crop kitti_eigen`
+2. Citrus should use `--depth_metric_crop none`
+3. if Citrus-shaped labels accidentally try to use the KITTI crop, the code raises a clear error instead of silently computing misleading metrics
+4. when `valid_mask` is present, metric logging uses it to ignore invalid pixels
+
+Plain meaning:
+
+- this does not train Citrus yet
+- it makes the next training integration safer
+- it protects us from reporting wrong monitoring numbers just because the old trainer assumed KITTI image geometry
+
+### Are we using KITTI defaults again when root training says "kitti"?
+
+Not for Citrus training, after the latest Milestone 2 guard.
+
+The original Lite-Mono codebase is KITTI-first, so some option names still mention KITTI. The important question is what happens when we choose:
+
+```text
+--dataset citrus
+```
+
+The root trainer now resolves Citrus like this:
+
+```text
+dataset            = citrus
+split              = citrus_prepared
+data_path          = citrus_project/dataset_workspace
+depth_metric_crop  = none
+```
+
+So Citrus does **not** use the KITTI Eigen crop for depth metric logging.
+
+The CLI option is now:
+
+```text
+--depth_metric_crop auto
+```
+
+Plain meaning:
+
+1. for KITTI, `auto` becomes `kitti_eigen`
+2. for Citrus, `auto` becomes `none`
+3. if someone explicitly tries `--dataset citrus --depth_metric_crop kitti_eigen`, the trainer rejects it
+
+Why does this matter?
+
+KITTI depth labels are shaped around:
+
+```text
+375 x 1242
+```
+
+Citrus labels are:
+
+```text
+720 x 1280
+```
+
+So using the KITTI crop on Citrus would create misleading monitoring numbers. The guard makes that mistake fail early.
+
+Current root smoke result:
+
+1. root `Trainer` loaded Citrus train/val DataLoaders
+2. train temporal samples: `4275`
+3. validation temporal samples: `560`
+4. one CPU batch passed through the normal trainer `process_batch`
+5. the photometric loss and depth-monitor number were finite
+
+This is still not a real fine-tuning experiment. It only proves the root trainer can now select Citrus and process one batch without falling back to KITTI metric geometry.
+
+### What does the one-step training smoke prove?
+
+The one-step smoke is the next rehearsal after the dry run.
+
+It checks that the root trainer can do this with one Citrus batch:
+
+```text
+load batch
+run prediction
+compute training loss
+run backward pass
+update model parameters once
+stop
+```
+
+This is still **not** a real training experiment.
+
+Why?
+
+Real training means many batches and epochs, saved checkpoints, validation, and later comparison against the original baseline. The one-step smoke only checks that the machinery can move once without breaking.
+
+The latest smoke showed:
+
+1. Citrus train samples loaded through root trainer: `4275`
+2. Citrus validation samples loaded through root trainer: `560`
+3. `depth_metric_crop` resolved to `none`
+4. training loss before the update was finite
+5. gradients were finite
+6. one encoder parameter changed after the optimizer step
+
+Plain meaning:
+
+- forward pass works
+- backward pass works
+- optimizer update works
+- we still should not treat this as adaptation evidence
+
+The next training-quality detail was color augmentation.
+The Citrus loader now supports train-only color augmentation, so during training it can create:
+
+```text
+color_aug = a color-jittered version of color
+```
+
+Validation still keeps:
+
+```text
+color_aug = color
+```
+
+That is intentional because validation should be stable and not randomly color-changed.
+
+### What did Citrus color augmentation change?
+
+Original Lite-Mono training uses a color-augmented image tensor called `color_aug`.
+
+Plain meaning:
+
+- `color` = the normal RGB tensor
+- `color_aug` = a training-only version with random brightness/contrast/saturation/hue changes
+
+The model predicts depth from `color_aug`, while the photometric comparison still uses the normal color images. This helps the model avoid becoming too dependent on exact lighting and color.
+
+For Citrus, the loader now does this:
+
+1. train split:
+   - sometimes applies ColorJitter-style augmentation to `color_aug`
+   - uses the same jitter choice for all frames in one temporal sample
+
+2. validation/test split:
+   - keeps `color_aug` exactly equal to `color`
+   - avoids random validation behavior
+
+The smoke check forced augmentation on and found:
+
+```text
+train color_aug difference > 0
+validation color_aug difference = 0
+```
+
+Plain meaning:
+
+- training augmentation is working
+- validation remains stable
+
+### Is Milestone 2 finished?
+
+Milestone 2 core integration is now complete.
+
+What is complete:
+
+1. Citrus Dataset/DataLoader can load prepared split manifests
+2. safe previous/current/next temporal triplets are available
+3. root trainer can select `--dataset citrus`
+4. Citrus automatically uses `depth_metric_crop=none`, not the KITTI crop
+5. one root trainer batch can run forward
+6. one optimizer step can run backward and update parameters
+7. train-only color augmentation works
+8. the one-step optimizer smoke also passed on CUDA after the laptop GPU became visible
+
+What is **not** done:
+
+1. no real Citrus fine-tuning experiment has been run yet
+2. no useful adapted checkpoint has been produced yet
+3. no Milestone 3 comparison against the original baseline has happened yet
+
+So the simple answer is:
+
+```text
+Milestone 2 core = finished
+Milestone 3 training/adaptation = not started yet
+```
+
+Latest GPU smoke:
+
+```text
+device = cuda
+GPU    = NVIDIA GeForce RTX 4060 Laptop GPU
+```
+
+The GPU smoke still does not mean the model is trained. It only proves the one-step training machinery works on the laptop GPU.
+
