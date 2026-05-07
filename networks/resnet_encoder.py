@@ -7,6 +7,45 @@ import torch.utils.model_zoo as model_zoo
 from torchvision import transforms
 
 
+def _get_resnet_weights(num_layers):
+    """Return torchvision's modern ImageNet weights enum when available."""
+    weights_enum = getattr(models, "ResNet{}_Weights".format(num_layers), None)
+    if weights_enum is None:
+        return None
+    return getattr(weights_enum, "IMAGENET1K_V1", weights_enum.DEFAULT)
+
+
+def _load_resnet_pretrained_state_dict(num_layers):
+    weights = _get_resnet_weights(num_layers)
+    if weights is not None:
+        return weights.get_state_dict(progress=True)
+
+    model_urls = getattr(models.resnet, "model_urls", None)
+    if model_urls is None:
+        raise RuntimeError(
+            "Cannot load pretrained ResNet{} weights: torchvision provides "
+            "neither modern weights enums nor legacy model_urls".format(num_layers))
+    return model_zoo.load_url(model_urls["resnet{}".format(num_layers)])
+
+
+def _build_resnet(num_layers, pretrained):
+    resnets = {18: models.resnet18,
+               34: models.resnet34,
+               50: models.resnet50,
+               101: models.resnet101,
+               152: models.resnet152}
+
+    if num_layers not in resnets:
+        raise ValueError("{} is not a valid number of resnet layers".format(num_layers))
+
+    if pretrained:
+        weights = _get_resnet_weights(num_layers)
+        if weights is not None:
+            return resnets[num_layers](weights=weights)
+
+    return resnets[num_layers](pretrained=pretrained)
+
+
 class ResNetMultiImageInput(models.ResNet):
     """Constructs a resnet model with varying number of input images.
     Adapted from https://github.com/pytorch/vision/blob/master/torchvision/models/resnet.py
@@ -45,7 +84,7 @@ def resnet_multiimage_input(num_layers, pretrained=False, num_input_images=1):
     model = ResNetMultiImageInput(block_type, blocks, num_input_images=num_input_images)
 
     if pretrained:
-        loaded = model_zoo.load_url(models.resnet.model_urls['resnet{}'.format(num_layers)])
+        loaded = _load_resnet_pretrained_state_dict(num_layers)
         loaded['conv1.weight'] = torch.cat(
             [loaded['conv1.weight']] * num_input_images, 1) / num_input_images
         model.load_state_dict(loaded)
@@ -63,19 +102,10 @@ class ResnetEncoder(nn.Module):
 
         self.num_ch_enc = np.array([64, 64, 128, 256, 512])
 
-        resnets = {18: models.resnet18,
-                   34: models.resnet34,
-                   50: models.resnet50,
-                   101: models.resnet101,
-                   152: models.resnet152}
-
-        if num_layers not in resnets:
-            raise ValueError("{} is not a valid number of resnet layers".format(num_layers))
-
         if num_input_images > 1:
             self.encoder = resnet_multiimage_input(num_layers, pretrained, num_input_images)
         else:
-            self.encoder = resnets[num_layers](pretrained)
+            self.encoder = _build_resnet(num_layers, pretrained)
 
         if num_layers > 34:
             self.num_ch_enc[1:] *= 4

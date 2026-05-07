@@ -3,6 +3,7 @@ from __future__ import absolute_import, division, print_function
 
 import time
 import sys
+import random
 import torch.optim as optim
 from torch.utils.data import DataLoader
 from tensorboardX import SummaryWriter
@@ -31,6 +32,7 @@ def time_sync():
 class Trainer:
     def __init__(self, options):
         self.opt = options
+        self.configure_reproducibility()
         self.configure_dataset_options()
         self.log_path = os.path.join(self.opt.log_dir, self.opt.model_name)
 
@@ -62,7 +64,10 @@ class Trainer:
                                                    width=self.opt.width, height=self.opt.height)
 
         self.models["encoder"].to(self.device)
-        self.parameters_to_train += list(self.models["encoder"].parameters())
+        if self.opt.freeze_depth_encoder:
+            self.freeze_module(self.models["encoder"])
+        else:
+            self.parameters_to_train += list(self.models["encoder"].parameters())
 
         self.models["depth"] = networks.DepthDecoder(self.models["encoder"].num_ch_enc,
                                                      self.opt.scales)
@@ -147,6 +152,8 @@ class Trainer:
 
         num_train_samples = len(train_dataset)
         self.num_total_steps = num_train_samples // self.opt.batch_size * self.opt.num_epochs
+        if self.opt.max_train_steps > 0:
+            self.num_total_steps = min(self.num_total_steps, self.opt.max_train_steps)
 
         self.train_loader = DataLoader(
             train_dataset, self.opt.batch_size, True,
@@ -195,6 +202,31 @@ class Trainer:
             self.opt.citrus_max_neighbor_delta_ms = 200.0
         if not hasattr(self.opt, "citrus_color_aug_probability"):
             self.opt.citrus_color_aug_probability = 0.5
+        if not hasattr(self.opt, "max_train_steps"):
+            self.opt.max_train_steps = 0
+        if not hasattr(self.opt, "freeze_depth_steps"):
+            self.opt.freeze_depth_steps = 0
+        if not hasattr(self.opt, "freeze_depth_encoder"):
+            self.opt.freeze_depth_encoder = False
+        if not hasattr(self.opt, "save_step_frequency"):
+            self.opt.save_step_frequency = 0
+        if self.opt.max_train_steps < 0:
+            raise ValueError(
+                "--max_train_steps must be non-negative; "
+                "use 0 to run the full requested epochs")
+        if self.opt.freeze_depth_steps < 0:
+            raise ValueError(
+                "--freeze_depth_steps must be non-negative; "
+                "use 0 to update depth from the first step")
+        if self.opt.save_step_frequency < 0:
+            raise ValueError(
+                "--save_step_frequency must be non-negative; "
+                "use 0 to keep epoch-only checkpointing")
+        if self.opt.freeze_depth_encoder and self.opt.pose_model_type == "shared":
+            raise ValueError(
+                "--freeze_depth_encoder is not supported with "
+                "--pose_model_type shared because the depth encoder is also "
+                "used as the pose encoder")
         if not 0.0 <= self.opt.citrus_color_aug_probability <= 1.0:
             raise ValueError(
                 "--citrus_color_aug_probability must be between 0 and 1, "
@@ -277,6 +309,8 @@ class Trainer:
         """
         for m in self.models.values():
             m.train()
+        if self.opt.freeze_depth_encoder:
+            self.models["encoder"].eval()
 
     def set_eval(self):
         """Convert all models to testing/evaluation mode
@@ -294,6 +328,8 @@ class Trainer:
             self.run_epoch()
             if (self.epoch + 1) % self.opt.save_frequency == 0:
                 self.save_model()
+            if self.reached_max_train_steps():
+                break
 
     def run_epoch(self):
         """Run a single epoch of training and validation
@@ -301,12 +337,17 @@ class Trainer:
 
         print("Training")
         self.set_train()
+        if self.depth_updates_frozen():
+            print("Freezing depth optimizer updates for the first {} training steps.".format(
+                self.opt.freeze_depth_steps))
 
         self.model_lr_scheduler.step()
         if self.use_pose_net:
             self.model_pose_lr_scheduler.step()
 
         for batch_idx, inputs in enumerate(self.train_loader):
+            if self.reached_max_train_steps():
+                break
 
             before_op_time = time.time()
 
@@ -316,7 +357,8 @@ class Trainer:
             if self.use_pose_net:
                 self.model_pose_optimizer.zero_grad()
             losses["loss"].backward()
-            self.model_optimizer.step()
+            if not self.depth_updates_frozen():
+                self.model_optimizer.step()
             if self.use_pose_net:
                 self.model_pose_optimizer.step()
 
@@ -336,6 +378,40 @@ class Trainer:
                 self.val()
 
             self.step += 1
+            if self.opt.freeze_depth_steps > 0 and self.step == self.opt.freeze_depth_steps:
+                print("Reached --freeze_depth_steps={}; depth optimizer updates are enabled.".format(
+                    self.opt.freeze_depth_steps))
+            if (
+                self.opt.save_step_frequency > 0
+                and self.step % self.opt.save_step_frequency == 0
+            ):
+                self.save_model("step_{}".format(self.step))
+            if self.reached_max_train_steps():
+                print("Reached --max_train_steps={}; stopping training.".format(
+                    self.opt.max_train_steps))
+                break
+
+    def reached_max_train_steps(self):
+        return self.opt.max_train_steps > 0 and self.step >= self.opt.max_train_steps
+
+    def depth_updates_frozen(self):
+        return self.opt.freeze_depth_steps > 0 and self.step < self.opt.freeze_depth_steps
+
+    def configure_reproducibility(self):
+        seed = getattr(self.opt, "seed", None)
+        if seed is None:
+            return
+        random.seed(seed)
+        np.random.seed(seed)
+        torch.manual_seed(seed)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed_all(seed)
+
+    @staticmethod
+    def freeze_module(module):
+        for parameter in module.parameters():
+            parameter.requires_grad = False
+        module.eval()
 
     def process_batch(self, inputs):
         """Pass a minibatch through the network and generate images and losses
@@ -436,10 +512,10 @@ class Trainer:
         """
         self.set_eval()
         try:
-            inputs = self.val_iter.next()
+            inputs = next(self.val_iter)
         except StopIteration:
             self.val_iter = iter(self.val_loader)
-            inputs = self.val_iter.next()
+            inputs = next(self.val_iter)
 
         with torch.no_grad():
             outputs, losses = self.process_batch(inputs)
@@ -732,10 +808,12 @@ class Trainer:
         with open(os.path.join(models_dir, 'opt.json'), 'w') as f:
             json.dump(to_save, f, indent=2)
 
-    def save_model(self):
+    def save_model(self, folder_name=None):
         """Save model weights to disk
         """
-        save_folder = os.path.join(self.log_path, "models", "weights_{}".format(self.epoch))
+        if folder_name is None:
+            folder_name = "weights_{}".format(self.epoch)
+        save_folder = os.path.join(self.log_path, "models", folder_name)
         if not os.path.exists(save_folder):
             os.makedirs(save_folder)
 

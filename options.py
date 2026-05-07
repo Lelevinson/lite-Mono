@@ -126,6 +126,32 @@ class LiteMonoOptions:
                                  type=int,
                                  help="number of epochs",
                                  default=50)
+        self.parser.add_argument("--seed",
+                                 type=int,
+                                 help="optional random seed for reproducible short runs; "
+                                      "unset preserves the original behavior",
+                                 default=None)
+        self.parser.add_argument("--max_train_steps",
+                                 type=int,
+                                 help="optional safety limit for optimizer steps; "
+                                      "0 means run the full requested epochs",
+                                 default=0)
+        self.parser.add_argument("--freeze_depth_steps",
+                                 type=int,
+                                 help="optional pose warmup; skip depth optimizer updates "
+                                      "for the first N training steps while pose still updates. "
+                                      "0 disables this behavior",
+                                 default=0)
+        self.parser.add_argument("--freeze_depth_encoder",
+                                 help="if set, keep the depth encoder weights and BatchNorm "
+                                      "running statistics frozen during training; only the "
+                                      "depth decoder remains in the depth optimizer",
+                                 action="store_true")
+        self.parser.add_argument("--save_step_frequency",
+                                 type=int,
+                                 help="optional step checkpoint interval; "
+                                      "0 keeps the original epoch-only checkpoint behavior",
+                                 default=0)
         self.parser.add_argument("--scheduler_step_size",
                                  type=int,
                                  help="step size of the scheduler",
