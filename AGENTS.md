@@ -482,19 +482,44 @@ Important clarification:
 2. There is no implemented ZED-depth densification pipeline in the current scripts.
 3. Older notes may say "densed lidar dataset"; prefer "dense LiDAR labels" or "LiDAR-densified depth labels" in new paper-facing text.
 
-## Training Strategy Notes (Research Discussion)
+## Training Strategy Notes (Research Direction Locked - 2026-04-27)
 
+**Core hypothesis (Focused Strategy):**
+Vegetation depth fails due to: occlusion + thin structures + weak textures + boundary confusion.  
+Solution: Lightweight self-supervised depth with occlusion-aware loss + boundary-aware training.
+
+**Paper story:**
+"Occlusion-Aware Lightweight Depth for Vegetation-Dense Orchards: Self-Supervised Monocular Depth in Citrus Scenes"
+
+**Implementation plan:**
+1. Phase 1: Occlusion-aware masking (detects boundaries from depth gradients, masks photometric loss)
+2. Phase 2: Boundary-aware loss refinement (explicit edge preservation)
+3. (Optional) Phase 3: Architecture comparison (RTS-Mono vs improved Lite-Mono)
+
+**Core papers (4 only):**
+- Occlusion-Aware SSL (endoscopy): Loss design with occlusion masking
+- BoRe-Depth: Boundary refinement approach
+- Sharper Object Boundaries: Alternative edge preservation
+- RTS-Mono: Lightweight baseline comparison
+
+**What we're NOT doing:**
+- Language-guided depth (too complex)
+- Diffusion models (too heavy)
+- Architecture searches (MambaDepth, kernels)
+- Multi-task learning (detection + depth)
+
+**Previous strategy notes (superseded):**
 1. Current Lite-Mono training path in this repository is self-supervised RGB photometric optimization.
 2. depth_gt is currently used for monitoring metrics/logging in trainer.py, not as the primary optimization loss.
 3. Current working preference is self-supervised-first with architecture exploration to reduce over-specialization risk and preserve broader cross-farm deployment potential.
 4. Dense LiDAR labels are the preferred supervision source when adding supervised or hybrid training for Citrus Farm.
 5. For publication fairness, compare methods under the same Citrus data budget and splits:
    - self-supervised baseline (RGB-only)
-   - self-supervised variant with architecture improvements
-   - optional stage-2 supervised variant using dense LiDAR labels
-   - optional stage-2 hybrid variant (self-supervised + supervised depth)
+   - self-supervised variant with occlusion-aware loss
+   - self-supervised variant with occlusion + boundary-aware loss
+   - optional stage-2 supervised variant using dense LiDAR labels (lower priority now)
 6. Deployment note: LiDAR is required for label creation during training pipeline only; runtime inference remains RGB-only.
-7. Strategy is still discussion-stage and not finalized; professor feedback is pending before locking implementation order.
+7. Strategy locked in after ChatGPT review; no further research direction changes without team consensus.
 
 ## Verification Checklist
 
