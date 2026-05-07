@@ -1,6 +1,6 @@
 # Task Board
 
-Date: 2026-05-05
+Date: 2026-05-07
 
 ## Current Project Position
 
@@ -21,6 +21,9 @@ Date: 2026-05-05
 - Milestone 2 Citrus color augmentation now applies train-only `color_aug` jitter while validation stays unaugmented.
 - Milestone 2 CUDA one-step Citrus smoke passed on the NVIDIA GeForce RTX 4060 Laptop GPU.
 - Milestone 2 core integration is complete.
+- Milestone 3 standard self-supervised Citrus adaptation is documented as weak/negative baseline evidence: the training path works, but tested recipes do not beat the untouched baseline and can damage relative-depth structure.
+- Disabling Citrus color augmentation reduced the damage at 250 steps, but the 500-step no-augmentation continuation degraded again, so the current recipe family should not be scaled into a long run.
+- Milestone 4 planning is the next main research step.
 - A small curated sample pack is still needed for Friend B's deeper work.
 
 ## Ownership
@@ -30,12 +33,13 @@ Date: 2026-05-05
 Current focus:
 
 1. maintain the core Citrus pipeline and repo-wide integration
-2. review and explain Milestone 2 dataset/training integration decisions before root trainer changes
-3. keep optional Milestone 1 polish deferred unless needed for the paper story
+2. begin Milestone 4 planning from the documented Milestone 3 failure pattern
+3. keep optional Milestone 1 polish and further Milestone 3 recipe scaling deferred unless needed for the paper story
 
 Near-term outputs:
 
-- Milestone 3 controlled short Citrus self-supervised adaptation run plan
+- Milestone 4 method-selection plan with one lightweight vegetation-focused improvement candidate
+- final Milestone 3 closeout wording for the paper/results story
 - optional broader failure taxonomy or FLOPs notes later if needed
 
 ### Friend A
@@ -77,12 +81,12 @@ Expected near-term output:
 
 1. Friend B’s deeper work depends on a small curated sample pack being prepared.
 2. Baseline evaluation no longer needs final validation/test runs, validation/test visual selection, or first written interpretation; remaining Milestone 1 extras are optional depth, FLOPs, or broader taxonomy.
-3. Full self-supervised Citrus training is waiting on a controlled short-run plan for Milestone 3.
+3. Full self-supervised Citrus training should not proceed under the current Milestone 3 recipe family without a new technical reason.
 
 ## Next Review Point
 
 After:
 
 1. the sample pack scaffold is ready for sharing
-2. the first Milestone 3 short-run command and evaluation plan are reviewed
+2. the first Milestone 4 improvement candidate and evaluation plan are reviewed
 3. Friend A has an initial idea shortlist

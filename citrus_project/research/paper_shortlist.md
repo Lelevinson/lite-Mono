@@ -105,6 +105,36 @@ Current status:
 
 ## Early Candidates
 
+### Milestone 3 Self-Supervised Adaptation Instability
+
+Evidence notes:
+
+- `citrus_project/research/baseline_notes.md`
+- `citrus_project/milestones/03_self_supervised_adaptation/README.md`
+- ignored run outputs under `citrus_project/milestones/03_self_supervised_adaptation/runs/`
+
+Why it matters:
+
+- Shows that a plain self-supervised Citrus adaptation baseline is not automatically better than the untouched original model.
+- The conservative 1000-step probe still worsened first-100 validation median-scaled depth quality: final `abs_rel=0.6615`, `a1=0.1827`, versus untouched baseline `abs_rel=0.3680`, `a1=0.4807`.
+- Side-by-side visual panels show the adapted checkpoint becoming smoother and less structurally specific than the original baseline on selected validation examples.
+- A no-color-augmentation 250-step control improved over the color-augmented 250-step control, but still did not beat the untouched baseline on median-scaled relative-depth metrics.
+- Extending the no-color-augmentation control to 500 steps worsened relative-depth metrics again: `abs_rel=0.5300`, `a1=0.3513`.
+- This is useful motivation for a Milestone 4 structure-preserving or vegetation-aware improvement, as long as it is presented carefully as negative/diagnostic evidence.
+
+Paper section fit:
+
+- Baseline adaptation results
+- Failure analysis
+- Motivation for proposed method
+
+Current status:
+
+- Documented as weak/negative adapted-baseline evidence.
+- Use carefully: it supports the claim that standard self-supervised Citrus adaptation is not enough under the tested recipe family, rather than claiming all possible adaptation can never work.
+- Next paper-facing need is to compare the future Milestone 4 improvement against original Lite-Mono and this documented Milestone 3 failure pattern.
+- Visual comparison panels were generated on 2026-05-07 under the Milestone 3 ignored run folder.
+
 ### Original Lite-Mono Qualitative Citrus Prediction
 
 Evidence notes:

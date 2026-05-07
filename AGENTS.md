@@ -40,6 +40,15 @@ Update policy:
 3. If a change affects both project status and beginner understanding, update both files in the same turn.
 4. Keep `citrus_project/research/student_qna.md` simple and stable; do not use it as a scratchpad or temporary log.
 
+Living-notes rule:
+
+1. Treat project notes as living documents, not append-only logs.
+2. Keep `AGENTS.md` compact and source-of-truth oriented: current status, active decisions, important commands/paths, and next actions.
+3. When experiments accumulate, consolidate old detail into readable tables or summaries instead of continually appending full command/output narratives.
+4. Keep detailed evidence in the appropriate milestone README or research note, and let `AGENTS.md` link or point there.
+5. When a newer result supersedes an older temporary result, update the older wording or mark it as superseded instead of leaving conflicting notes.
+6. Prefer clarity for future chats over preserving every intermediate line in `AGENTS.md`.
+
 ## Workspace Layout
 
 The repository now has a deliberate split between upstream Lite-Mono code and project-owned Citrus research work.
@@ -754,22 +763,87 @@ Current:
 15. `citrus_project/milestones/02_citrus_integration/smoke_root_citrus_one_step_train.py` verifies one Citrus optimizer step through the root trainer path.
 16. `CitrusPreparedDataset` now supports train-only ColorJitter-style augmentation for `color_aug`; validation/test samples keep `color_aug == color`.
 17. Milestone 2 core integration is complete: Dataset/DataLoader, temporal triplets, root trainer selection, Citrus-safe depth metrics, color augmentation, forward/backward, and one optimizer step all pass, including a CUDA one-step smoke.
-18. Full Citrus training experiments have not started yet; those belong to Milestone 3 self-supervised adaptation.
+18. Milestone 3 standard self-supervised Citrus adaptation is now documented as a weak/negative adapted-baseline result, not an improvement. Full long training was not launched because short and near-epoch gates showed damaging relative-depth drift.
+19. Milestone 3 run logs/checkpoints go under ignored `citrus_project/milestones/03_self_supervised_adaptation/runs/`; original `weights/lite-mono/` remains input-only.
+20. Root trainer safety and compatibility changes now include:
+   - default-off `--seed` reproducibility option for controlled short-run comparisons
+   - `--max_train_steps` safety brake
+   - Python 3-compatible `trainer.val()` iterator handling
+   - modern torchvision ResNet pretrained-weight loading in `networks/resnet_encoder.py`
+   - default-off `--freeze_depth_steps`
+   - default-off `--freeze_depth_encoder`
+   - default-off `--save_step_frequency` for optional step checkpoints during monitored runs
+21. Milestone 3 short-run evidence so far:
+   - smoke/checkpoint/resume path works on CUDA
+   - pretrained pose construction and root trainer use now work
+   - batch size 4 fits on the laptop RTX 4060 GPU
+   - `diagnose_self_supervised_batch.py` records fixed-batch photo loss, loss decomposition, depth metrics, depth median, pose motion, automask, source selection, and warp OOB signals
+22. Milestone 3 recipe search verdict so far:
+   - naive self-supervised adaptation has not beaten the untouched baseline on the first 100 validation samples
+   - photo loss can improve while LiDAR-valid depth metrics get worse
+   - pose-only training can reduce photo loss, but if the full depth path is frozen, RGB-only depth inference is unchanged and first-100 validation metrics match the untouched baseline exactly
+   - depth encoder BatchNorm drift alone causes only small metric movement in the current 50-step control
+   - seeded warmup/depth trajectory shows median-scaled relative-depth quality worsens after as few as 5 depth-update steps
+   - normal depth LR can improve raw scale while damaging median-scaled relative structure
+   - lower depth LR, frozen depth encoder/BatchNorm, decoder-only updates, and previous-only temporal source have not fixed the issue
+   - the terminal-controlled conservative 1000-step near-epoch probe also failed to recover: final first-100 median-scaled `abs_rel=0.6615`, `a1=0.1827`, worse than the untouched baseline `abs_rel=0.3680`, `a1=0.4807`
+   - disabling Citrus color augmentation in a 250-step conservative control helped versus the color-augmented 250-step run, but still trailed the untouched baseline on median-scaled relative-depth quality: no-aug `abs_rel=0.4108`, `a1=0.4568`
+   - extending no-color augmentation to 500 steps degraded again: first-100 median-scaled `abs_rel=0.5300`, `a1=0.3513`
+23. Current likely failure pattern:
+   - the self-supervised objective is changing predicted scale/structure in ways that are not aligned with Citrus LiDAR-valid depth quality
+   - smoothness loss is tiny relative to photo loss in the fixed validation diagnostics
+   - source-frame direction and encoder BatchNorm drift are not sufficient explanations by themselves
+   - "just train longer with the same recipe" is not supported: the 1000-step conservative probe was already worse at step 250 and degraded further by step 500-1000
+24. Detailed Milestone 3 command/result history lives in:
+   - `citrus_project/milestones/03_self_supervised_adaptation/README.md`
+   - `citrus_project/milestones/03_self_supervised_adaptation/beginner_progress_summary.md`
+   - `citrus_project/research/baseline_notes.md`
+   - ignored run folders under `citrus_project/milestones/03_self_supervised_adaptation/runs/`
+25. The terminal-controlled conservative monitored probe has now been run by the user and checked:
+   - `citrus_project/milestones/03_self_supervised_adaptation/run_controlled_decoderonly_lowdepthlr_1epoch.ps1`
+   - `citrus_project/milestones/03_self_supervised_adaptation/evaluate_controlled_decoderonly_lowdepthlr.ps1`
+   - recipe: original encoder/depth weights, pretrained pose, batch size 4, seed 0, drop path 0, 25-step depth optimizer warmup, frozen depth encoder/BatchNorm, low depth LR, 1000-step cap, and 250-step checkpoints
+   - training stopped cleanly at `--max_train_steps=1000`
+   - saved checkpoints: `step_250`, `step_500`, `step_750`, `step_1000`, and `weights_0`; `step_1000` and `weights_0` are identical
+   - first-100 validation evaluations are saved under the run folder's `eval_val100_*` directories
+   - result table: baseline median-scaled `abs_rel=0.3680`/`a1=0.4807`; step250 `0.4542`/`0.4290`; step500 `0.6325`/`0.2445`; step750 `0.6152`/`0.2366`; final1000 `0.6615`/`0.1827`
+26. Milestone 3 visual comparison after the 1000-step probe:
+   - helper: `citrus_project/milestones/03_self_supervised_adaptation/compare_original_vs_adapted_visuals.py`
+   - outputs: `citrus_project/milestones/03_self_supervised_adaptation/runs/citrus_ss_seed0_decoderonly_lowdepthlr_1epoch_1000steps/visual_compare_original_vs_adapted_val100_weights_0/`
+   - selected panels: adapted good index 12, adapted typical index 36, adapted bad index 75, and largest drop versus original index 48
+   - visual verdict: the adapted checkpoint is smoother and less structurally specific; it loses tree/canopy/ground separation that the original baseline weakly preserved after median scaling, so the failure is relative-depth structure damage, not only global scale
+27. Milestone 3 no-color-augmentation control:
+   - run: `citrus_project/milestones/03_self_supervised_adaptation/runs/citrus_ss_seed0_decoderonly_lowdepthlr_noaug_250steps/`
+   - recipe: original encoder/depth weights, pretrained pose, batch size 4, seed 0, drop path 0, 25-step depth optimizer warmup, frozen depth encoder/BatchNorm, low depth LR, `--citrus_color_aug_probability 0`, 250-step cap
+   - training stopped cleanly at `--max_train_steps=250`; `step_250` and `weights_0` are identical
+   - first-100 validation: raw `abs_rel=0.7192`, median-scaled `abs_rel=0.4108`, median-scaled `a1=0.4568`, median scale ratio `4.057223`
+   - interpretation: no color augmentation helped compared with the color-augmented 250-step conservative run, but still did not beat the untouched baseline on relative depth; color jitter is likely a contributor, not the whole root cause
+28. Milestone 3 no-color-augmentation 500-step control:
+   - run: `citrus_project/milestones/03_self_supervised_adaptation/runs/citrus_ss_seed0_decoderonly_lowdepthlr_noaug_500steps/`
+   - recipe: same as no-aug 250-step control, but `--max_train_steps 500` and `--save_step_frequency 250`
+   - training stopped cleanly at `--max_train_steps=500`; saved `step_250`, `step_500`, and `weights_0`; `step_500` and `weights_0` are identical
+   - first-100 validation: raw `abs_rel=0.7235`, median-scaled `abs_rel=0.5300`, median-scaled `a1=0.3513`, median scale ratio `4.322919`
+   - interpretation: no color augmentation is still better than color augmentation at 500 steps, but it worsens from 250 to 500 and still does not beat the untouched baseline; this recipe should not be scaled further without a new method/technical reason
+29. Milestone 3 closeout decision:
+   - the tested standard self-supervised adaptation recipe family is closed as negative/weak baseline evidence
+   - do not keep searching this same recipe family by running longer jobs
+   - Milestone 4 should start from the documented failure target: preserve or improve Citrus relative depth structure while adapting to vegetation scenes
+   - from-scratch training remains a possible later larger-data branch, not the immediate fix with the current 4275-triplet Citrus train split
 
 Next:
 
 1. Treat Milestone 2 as core complete.
-2. Start Milestone 3 with a controlled short Citrus self-supervised adaptation run plan before launching any long fine-tuning.
-3. Prefer same-split, same-session `[-1, 0, 1]` RGB triplets with a 200 ms neighbor-gap cap; current temporal mode drops boundary samples that cannot form a full safe triplet.
-4. Prepare and share a small curated sample pack for Friend B's scene-taxonomy and qualitative-support work.
+2. Start Milestone 4 planning in the next chat: choose one lightweight vegetation-focused improvement that targets the Milestone 3 failure pattern, then test it against original Lite-Mono and the weak/negative Milestone 3 adapted baseline.
+3. Do not launch another longer/full Milestone 3 training run without a new technical reason and explicit confirmation.
+4. Prefer same-split, same-session `[-1, 0, 1]` RGB triplets with a 200 ms neighbor-gap cap for any future self-supervised runs; current temporal mode drops boundary samples that cannot form a full safe triplet.
+5. Consider expanding Citrus Farm sequences before final Milestone 4/paper comparison if the current 4275 train triplets look too limited.
+6. Prepare and share a small curated sample pack for Friend B's scene-taxonomy and qualitative-support work.
 
 Later:
 
-1. Wire the Citrus dataset path into root Lite-Mono training/evaluation while preserving KITTI behavior.
-2. Fine-tune/self-supervise Lite-Mono on Citrus RGB sequences.
-3. Propose and test one lightweight vegetation-focused improvement.
-4. Optionally test supervised or hybrid training with dense LiDAR labels.
-5. Assemble the paper package.
+1. Propose and test one lightweight vegetation-focused improvement against original Lite-Mono and the documented Milestone 3 weak/negative adaptation baseline.
+2. Optionally test supervised or hybrid training with dense LiDAR labels.
+3. Assemble the paper package.
 
 ## Quick Commands
 
@@ -1048,6 +1122,43 @@ Milestone 2 Citrus color augmentation:
    - Milestone 2 core integration is complete
    - the next milestone should be Milestone 3 controlled self-supervised Citrus adaptation, starting with a short run plan rather than a long training launch
 
+Milestone 3 compact experiment status:
+
+1. Scope:
+   - Milestone 3 is searching for a fair Citrus self-supervised adaptation recipe for original Lite-Mono.
+   - All runs so far are smoke/pilot scale; no long/full Citrus training run has started.
+   - Detailed command/output history lives in `citrus_project/milestones/03_self_supervised_adaptation/README.md` and `citrus_project/research/baseline_notes.md`.
+   - Beginner-friendly explanation lives in `citrus_project/milestones/03_self_supervised_adaptation/beginner_progress_summary.md`.
+2. Active code/config additions:
+   - `--seed`: default-off reproducibility option for controlled short-run comparisons.
+   - `--max_train_steps`: default-off safety brake for short runs.
+   - `trainer.val()` uses `next(self.val_iter)` for Python 3 iterator compatibility.
+   - `networks/resnet_encoder.py` supports modern torchvision pretrained ResNet weights.
+   - `--freeze_depth_steps`: default-off pose warmup/depth optimizer freeze.
+   - `--freeze_depth_encoder`: default-off encoder/BatchNorm freeze; unsupported with `--pose_model_type shared`.
+   - `--save_step_frequency`: default-off step checkpoint interval for monitored terminal runs.
+   - `diagnose_self_supervised_batch.py`: fixed-batch diagnostic helper, including `--freeze_depth_encoder`, `--weights_init`, `--frame_ids`, deterministic `--seed`, and loss-decomposition fields.
+3. Current pilot verdict:
+   - Original first-100 validation reference: raw `abs_rel=0.7289`; median-scaled `abs_rel=0.3680`, `a1=0.4807`.
+   - Seeded 25-step pose-warmup-only point stayed close to baseline: median-scaled `abs_rel=0.3758`, `a1=0.4797`.
+   - Seeded 30-step point, after only 5 depth-update steps, improved raw `abs_rel=0.6781` but worsened median-scaled `abs_rel=0.3902`, `a1=0.4484`.
+   - Seeded 40-step and 50-step points worsened median-scaled metrics further; the seeded 50-step point reached median-scaled `abs_rel=0.6354`, `a1=0.2280`.
+   - Normal-depth-LR 50-step warmup/depth update improved raw `abs_rel=0.4946` but worsened median-scaled `abs_rel=0.5766`, `a1=0.3135`.
+   - Low-depth-LR 50-step, decoder-only 50-step, and previous-only 50-step all still trailed the untouched baseline on first-100 validation.
+   - The safest pilot was 25-step depth-frozen pose warmup, which stayed close to baseline but did not adapt trainable depth weights.
+4. Diagnostic finding:
+   - Fixed-batch diagnostics show photo loss can improve while LiDAR-valid depth metrics worsen.
+   - Predicted-depth median/scale drift is a key failure signal.
+   - Scale-0 smoothness is tiny compared with selected photo loss in the current fixed-batch diagnostics.
+   - Pose-only controls indicate the larger failures appear when trainable depth parameters update, not when pose alone learns.
+   - Source-frame direction and encoder BatchNorm drift are not sufficient explanations by themselves.
+5. Current next technical direction:
+   - Treat the tested Milestone 3 recipe family as closed negative/weak baseline evidence.
+   - Do not scale existing recipes into a full long run.
+   - The terminal-controlled conservative 1000-step probe completed but did not recover; final first-100 median-scaled `abs_rel=0.6615` and `a1=0.1827`, worse than the untouched baseline.
+   - The no-color-augmentation 250-step control reduced the damage compared with color augmentation, but still did not beat the untouched baseline; the 500-step no-augmentation continuation worsened again.
+   - Next work should move to Milestone 4 method planning. The method should target structure preservation or vegetation-aware depth cues without simply copying the weak original model.
+
 ## Change Log
 
 - 2026-03-31: Created AGENTS.md with mandatory read/update workflow and Citrus pipeline context.
@@ -1130,8 +1241,22 @@ Milestone 2 Citrus color augmentation:
 - 2026-05-05: Added and ran the root Citrus one-step optimizer smoke; one CPU batch completed forward, backward, finite-gradient checks, and an AdamW parameter update without starting a real fine-tuning experiment.
 - 2026-05-05: Added train-only Citrus color augmentation for `color_aug`, verified validation remains unaugmented, reran root trainer wiring plus one-step optimizer smokes, and marked Milestone 2 core integration complete.
 - 2026-05-05: After the laptop GPU became visible, reran the root Citrus one-step optimizer smoke with `--use_cuda`; it passed on the NVIDIA GeForce RTX 4060 Laptop GPU.
+- 2026-05-05 to 2026-05-06: Milestone 3 moved through controlled CUDA smokes and pilot-scale self-supervised Citrus adaptation checks, with all run logs/checkpoints kept under the ignored Milestone 3 `runs/` folder.
+- 2026-05-05 to 2026-05-06: Added Milestone 3 safety/diagnostic controls: `--max_train_steps`, Python 3 validation iterator compatibility, modern torchvision ResNet pretrain loading, `--freeze_depth_steps`, `--freeze_depth_encoder`, and the fixed-batch diagnostic helper.
+- 2026-05-06: Milestone 3 pilot verdict is not to scale current recipes yet; photo loss can improve while LiDAR-valid depth metrics worsen, and lower LR, frozen encoder/BatchNorm, decoder-only updates, and previous-only temporal source did not beat the untouched baseline.
+- 2026-05-06: Added the living-notes rule and compacted the duplicated Milestone 3 run-by-run AGENTS.md history into a source-of-truth status summary that points to the detailed milestone/research notes.
+- 2026-05-06: Extended the Milestone 3 diagnostic helper with loss-decomposition, deterministic seed, frame-id, and weights-init controls; fixed validation diagnostics suggest smoothness is not the main driver and depth-scale freedom remains the key failure signal.
+- 2026-05-06: Ran 50-step pose-only/depth-frozen controls; fully freezing the depth path preserved the original first-100 validation metrics exactly, while BatchNorm-only drift moved metrics slightly, confirming the larger failures start when trainable depth parameters update.
+- 2026-05-06: Added default-off `--seed` for reproducible short-run comparisons and ran a seeded warmup-then-depth trajectory; median-scaled relative-depth quality worsened after 5 depth-update steps and degraded further by 15/25 depth-update steps.
+- 2026-05-06: Added `citrus_project/milestones/03_self_supervised_adaptation/beginner_progress_summary.md` as a plain-language Milestone 3 explanation for student/professor discussion.
+- 2026-05-06: Added default-off `--save_step_frequency` step checkpointing and prepared PowerShell runner/evaluation scripts for a user-launched conservative 1000-step Milestone 3 terminal probe; no training was launched by chat.
+- 2026-05-07: Checked the user-launched conservative 1000-step Milestone 3 probe; training stopped cleanly at the planned step limit, step checkpoints were saved, first-100 validation evaluations were saved, the run failed to beat the untouched baseline at step 250/500/750/final, and the negative adapted-baseline evidence was added to the paper shortlist.
+- 2026-05-07: Added and ran the Milestone 3 original-versus-adapted visual comparison helper; saved side-by-side panels for selected validation examples and recorded that the adapted checkpoint looks smoother and less structurally specific than the original baseline.
+- 2026-05-07: Ran the approved 250-step no-color-augmentation Milestone 3 control; it improved over the color-augmented 250-step conservative run but still did not beat the untouched baseline on first-100 median-scaled relative-depth metrics. Added a student Q&A note explaining why from-scratch training should be treated as a later larger-data branch rather than the immediate Milestone 3 fix.
+- 2026-05-07: Ran the approved 500-step no-color-augmentation Milestone 3 gate; it finished cleanly but worsened versus the 250-step no-augmentation checkpoint and still trailed the untouched baseline, supporting a stop to blind Milestone 3 recipe scaling.
+- 2026-05-07: Closed Milestone 3 standard self-supervised adaptation as documented weak/negative baseline evidence and updated handoff notes so the next chat should start Milestone 4 planning rather than restart Milestone 3 recipe scaling.
 
-## Update Template (Append On Future Changes)
+## Update Template (For Future Changes)
 
 Date:
 Changed files:
@@ -1140,3 +1265,5 @@ Why:
 Validation run:
 Open risks:
 Next step:
+
+Note-maintenance action:
